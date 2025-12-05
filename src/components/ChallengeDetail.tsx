@@ -14,6 +14,9 @@ import {
   useCreatorCancelChallenge,
   useHasVotedCancel,
   useCancelVoteStatus,
+  useVoteEarlySettle,
+  useHasVotedEarlySettle,
+  useEarlySettleVoteStatus,
 } from "@/hooks/useChallenge";
 import { formatEther } from "viem";
 import { useState, useEffect } from "react";
@@ -32,6 +35,8 @@ export function ChallengeDetail({ challengeId }: ChallengeDetailProps) {
   const { data: completers, refetch: refetchCompleters } = useCompleters(challengeId);
   const { data: hasVotedCancel } = useHasVotedCancel(challengeId, address);
   const { data: cancelVoteStatus, refetch: refetchCancelVotes } = useCancelVoteStatus(challengeId);
+  const { data: hasVotedEarlySettle, refetch: refetchEarlySettleVote } = useHasVotedEarlySettle(challengeId, address);
+  const { data: earlySettleVoteStatus, refetch: refetchEarlySettleStatus } = useEarlySettleVoteStatus(challengeId);
 
   const {
     joinChallenge,
@@ -68,8 +73,16 @@ export function ChallengeDetail({ challengeId }: ChallengeDetailProps) {
     isSuccess: creatorCancelSuccess,
   } = useCreatorCancelChallenge();
 
+  const {
+    voteEarlySettle,
+    isPending: isVotingEarlySettle,
+    isConfirming: isEarlySettleConfirming,
+    isSuccess: earlySettleSuccess,
+  } = useVoteEarlySettle();
+
   const [showShareModal, setShowShareModal] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
+  const [showEarlySettleModal, setShowEarlySettleModal] = useState(false);
   const [timeLeft, setTimeLeft] = useState("");
   const [mounted, setMounted] = useState(false);
 
@@ -78,7 +91,7 @@ export function ChallengeDetail({ challengeId }: ChallengeDetailProps) {
   }, []);
 
   useEffect(() => {
-    if (joinSuccess || markSuccess || settleSuccess || voteCancelSuccess || creatorCancelSuccess) {
+    if (joinSuccess || markSuccess || settleSuccess || voteCancelSuccess || creatorCancelSuccess || earlySettleSuccess) {
       setTimeout(() => {
         refetch();
         refetchParticipants();
@@ -86,9 +99,11 @@ export function ChallengeDetail({ challengeId }: ChallengeDetailProps) {
         refetchCompleted();
         refetchCompleters();
         refetchCancelVotes();
+        refetchEarlySettleVote();
+        refetchEarlySettleStatus();
       }, 2000);
     }
-  }, [joinSuccess, markSuccess, settleSuccess, voteCancelSuccess, creatorCancelSuccess, refetch, refetchParticipants, refetchJoined, refetchCompleted, refetchCompleters, refetchCancelVotes]);
+  }, [joinSuccess, markSuccess, settleSuccess, voteCancelSuccess, creatorCancelSuccess, earlySettleSuccess, refetch, refetchParticipants, refetchJoined, refetchCompleted, refetchCompleters, refetchCancelVotes, refetchEarlySettleVote, refetchEarlySettleStatus]);
 
   useEffect(() => {
     if (!challenge) return;
@@ -170,7 +185,13 @@ export function ChallengeDetail({ challengeId }: ChallengeDetailProps) {
     setShowCancelModal(false);
   };
 
+  const handleVoteEarlySettle = () => {
+    voteEarlySettle(challengeId);
+    setShowEarlySettleModal(false);
+  };
+
   const canJoin = !hasJoined && !isEnded && !challenge.settled && !isCancelled;
+  const canVoteEarlySettle = hasJoined && !hasVotedEarlySettle && !challenge.settled && !isCancelled && !isEnded;
   const canComplete = hasJoined && !hasCompleted && !isEnded && !challenge.settled && !isCancelled;
   const canSettle = isEnded && !challenge.settled && !isCancelled;
   const canVoteCancel = hasJoined && !hasVotedCancel && !challenge.settled && !isCancelled;
@@ -247,6 +268,17 @@ export function ChallengeDetail({ challengeId }: ChallengeDetailProps) {
             </p>
           </div>
           <div className="flex gap-2">
+            {!challenge.settled && hasJoined && !isEnded && (
+              <button
+                onClick={() => setShowEarlySettleModal(true)}
+                className="p-3 bg-stride-dark border border-white/10 hover:border-green-500/50 rounded-xl transition-colors text-stride-muted hover:text-green-400"
+                title="End Early (with payouts)"
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </button>
+            )}
             {!challenge.settled && hasJoined && (
               <button
                 onClick={() => setShowCancelModal(true)}
@@ -657,6 +689,72 @@ export function ChallengeDetail({ challengeId }: ChallengeDetailProps) {
                 </div>
               </>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Early Settle Modal */}
+      {showEarlySettleModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setShowEarlySettleModal(false)} />
+          <div className="relative w-full max-w-md bg-stride-gray border border-white/10 rounded-2xl shadow-2xl p-6">
+            <h3 className="text-xl font-bold mb-2 text-green-400">End Challenge Early</h3>
+            
+            <div className="p-3 bg-green-500/10 border border-green-500/30 rounded-xl mb-4">
+              <p className="text-sm text-green-400">
+                <strong>💰 Winners get paid!</strong> If all participants agree to end early, those who completed will split the prize pool.
+              </p>
+            </div>
+
+            <p className="text-stride-muted mb-4 text-sm">
+              All {participantCount} participants must vote to end early. 
+              {completerCount > 0 
+                ? ` ${completerCount} runner${completerCount !== 1 ? "s" : ""} will split ${poolEth} ETH.`
+                : " If no one has completed, the pool goes to charity."
+              }
+            </p>
+            
+            {earlySettleVoteStatus && (
+              <div className="p-3 bg-stride-dark rounded-xl mb-4">
+                <div className="flex justify-between text-sm">
+                  <span className="text-stride-muted">End early votes</span>
+                  <span className="font-mono">{Number(earlySettleVoteStatus[0])}/{Number(earlySettleVoteStatus[1])}</span>
+                </div>
+                <div className="h-2 bg-white/10 rounded-full mt-2 overflow-hidden">
+                  <div 
+                    className="h-full bg-green-500 transition-all"
+                    style={{ width: `${(Number(earlySettleVoteStatus[0]) / Number(earlySettleVoteStatus[1])) * 100}%` }}
+                  />
+                </div>
+                <p className="text-xs text-stride-muted mt-2">
+                  {Number(earlySettleVoteStatus[1]) - Number(earlySettleVoteStatus[0])} more vote{Number(earlySettleVoteStatus[1]) - Number(earlySettleVoteStatus[0]) !== 1 ? 's' : ''} needed
+                </p>
+              </div>
+            )}
+
+            {hasVotedEarlySettle ? (
+              <div className="p-4 bg-green-500/10 border border-green-500/20 rounded-xl mb-4 text-center">
+                <p className="text-green-400 text-sm">✓ You have voted to end early</p>
+              </div>
+            ) : null}
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowEarlySettleModal(false)}
+                className="btn-secondary flex-1"
+              >
+                Close
+              </button>
+              {canVoteEarlySettle && (
+                <button
+                  onClick={handleVoteEarlySettle}
+                  disabled={isVotingEarlySettle || isEarlySettleConfirming}
+                  className="flex-1 py-2.5 px-5 bg-green-500 hover:bg-green-600 text-white font-semibold rounded-xl transition-all"
+                >
+                  {isVotingEarlySettle || isEarlySettleConfirming ? "Voting..." : "Vote to End Early"}
+                </button>
+              )}
+            </div>
           </div>
         </div>
       )}

@@ -57,8 +57,20 @@ contract StrideChallengeManager {
     // Challenge ID => number of cancel votes
     mapping(uint256 => uint256) private cancelVoteCount;
 
+    // Challenge ID => address => voted for early settle
+    mapping(uint256 => mapping(address => bool)) private earlySettleVotes;
+    
+    // Challenge ID => number of early settle votes
+    mapping(uint256 => uint256) private earlySettleVoteCount;
+
     // User stats tracking
     mapping(address => UserStats) public userStats;
+
+    // Charity address for when no one wins
+    address public charityAddress;
+    
+    // Total donated to charity
+    uint256 public totalDonatedToCharity;
 
     // ============ Events ============
     
@@ -99,6 +111,23 @@ contract StrideChallengeManager {
         uint256 requiredVotes
     );
 
+    event EarlySettleVoteCast(
+        uint256 indexed challengeId,
+        address indexed voter,
+        uint256 totalVotes,
+        uint256 requiredVotes
+    );
+
+    event DonatedToCharity(
+        uint256 indexed challengeId,
+        uint256 amount
+    );
+
+    event CharityAddressUpdated(
+        address indexed oldAddress,
+        address indexed newAddress
+    );
+
     // ============ Errors ============
     
     error InvalidStakeAmount();
@@ -115,7 +144,17 @@ contract StrideChallengeManager {
     error TransferFailed();
     error NotCreator();
     error AlreadyVotedCancel();
+    error AlreadyVotedEarlySettle();
     error ChallengeHasParticipants();
+    error NoCharityAddress();
+
+    // ============ Constructor ============
+    
+    constructor() {
+        // Default charity address (can be updated by deployer pattern or governance)
+        // Using a well-known charity address - update this to your preferred charity
+        charityAddress = 0x7cEB23fD6bC0adD59E62ac25578270cFf1b9f619; // Example address
+    }
 
     // ============ External Functions ============
     
@@ -296,6 +335,53 @@ contract StrideChallengeManager {
     }
 
     /**
+     * @notice Vote to end a challenge early (requires all participants to agree)
+     * @dev If all vote and there are completers, winners get paid. If no completers, goes to charity.
+     * @param challengeId The ID of the challenge
+     */
+    function voteEarlySettle(uint256 challengeId) external {
+        Challenge storage challenge = challenges[challengeId];
+        
+        if (challenge.endTime == 0) revert ChallengeNotFound();
+        if (challenge.settled) revert AlreadySettled();
+        if (challenge.cancelled) revert AlreadyCancelled();
+        if (!hasJoinedMapping[challengeId][msg.sender]) revert NotJoined();
+        if (earlySettleVotes[challengeId][msg.sender]) revert AlreadyVotedEarlySettle();
+
+        earlySettleVotes[challengeId][msg.sender] = true;
+        earlySettleVoteCount[challengeId]++;
+
+        uint256 totalParticipants = participants[challengeId].length;
+        uint256 votesNeeded = totalParticipants; // All must agree
+
+        emit EarlySettleVoteCast(
+            challengeId, 
+            msg.sender, 
+            earlySettleVoteCount[challengeId], 
+            votesNeeded
+        );
+
+        // If all participants voted, settle the challenge early
+        if (earlySettleVoteCount[challengeId] >= totalParticipants) {
+            _settleChallenge(challengeId);
+        }
+    }
+
+    /**
+     * @notice Check if user has voted for early settle
+     */
+    function hasVotedEarlySettle(uint256 challengeId, address user) external view returns (bool) {
+        return earlySettleVotes[challengeId][user];
+    }
+
+    /**
+     * @notice Get early settle vote status
+     */
+    function getEarlySettleVoteStatus(uint256 challengeId) external view returns (uint256 votes, uint256 required) {
+        return (earlySettleVoteCount[challengeId], participants[challengeId].length);
+    }
+
+    /**
      * @notice Creator can cancel if they're the only participant
      * @param challengeId The ID of the challenge
      */
@@ -354,6 +440,14 @@ contract StrideChallengeManager {
         if (block.timestamp < challenge.endTime) revert ChallengeNotEnded();
         if (challenge.settled) revert AlreadySettled();
 
+        _settleChallenge(challengeId);
+    }
+
+    /**
+     * @notice Internal function to settle and distribute prizes
+     */
+    function _settleChallenge(uint256 challengeId) internal {
+        Challenge storage challenge = challenges[challengeId];
         challenge.settled = true;
         
         address[] memory winners = completers[challengeId];
@@ -391,16 +485,44 @@ contract StrideChallengeManager {
                 if (!success) revert TransferFailed();
             }
         } else {
-            // No completers - refund everyone
-            uint256 refundAmount = challenge.stakeAmount;
-            
-            for (uint256 i = 0; i < allParticipants.length; i++) {
-                (bool success, ) = allParticipants[i].call{value: refundAmount}("");
+            // No completers - donate to charity
+            if (charityAddress != address(0)) {
+                totalDonatedToCharity += totalPool;
+                
+                (bool success, ) = charityAddress.call{value: totalPool}("");
                 if (!success) revert TransferFailed();
+                
+                emit DonatedToCharity(challengeId, totalPool);
+                
+                // Update loser stats for all participants
+                for (uint256 i = 0; i < allParticipants.length; i++) {
+                    userStats[allParticipants[i]].totalLost += challenge.stakeAmount;
+                }
+            } else {
+                // Fallback: refund everyone if no charity address set
+                uint256 refundAmount = challenge.stakeAmount;
+                
+                for (uint256 i = 0; i < allParticipants.length; i++) {
+                    (bool success, ) = allParticipants[i].call{value: refundAmount}("");
+                    if (!success) revert TransferFailed();
+                }
             }
         }
 
         emit ChallengeSettled(challengeId, winnersCount, prizePerWinner);
+    }
+
+    /**
+     * @notice Update charity address (only callable by current charity or deployer initially)
+     */
+    function setCharityAddress(address newCharityAddress) external {
+        // Simple access control - in production, use proper governance
+        require(msg.sender == charityAddress || charityAddress == address(0) || msg.sender == address(this), "Not authorized");
+        
+        address oldAddress = charityAddress;
+        charityAddress = newCharityAddress;
+        
+        emit CharityAddressUpdated(oldAddress, newCharityAddress);
     }
 
     // ============ View Functions ============

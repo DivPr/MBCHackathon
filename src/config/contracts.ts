@@ -235,4 +235,45 @@ export const STRIDE_CHALLENGE_ABI = [
     outputs: [],
     stateMutability: "nonpayable",
   },
+  {
+    type: "function",
+    name: "voteEarlySettle",
+    inputs: [{ name: "challengeId", type: "uint256" }],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
+    name: "hasVotedEarlySettle",
+    inputs: [
+      { name: "challengeId", type: "uint256" },
+      { name: "user", type: "address" },
+    ],
+    outputs: [{ name: "", type: "bool" }],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "getEarlySettleVoteStatus",
+    inputs: [{ name: "challengeId", type: "uint256" }],
+    outputs: [
+      { name: "votes", type: "uint256" },
+      { name: "required", type: "uint256" },
+    ],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "charityAddress",
+    inputs: [],
+    outputs: [{ name: "", type: "address" }],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "totalDonatedToCharity",
+    inputs: [],
+    outputs: [{ name: "", type: "uint256" }],
+    stateMutability: "view",
+  },
 ] as const;

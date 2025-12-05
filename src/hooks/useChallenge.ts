@@ -93,6 +93,43 @@ export function useCancelVoteStatus(challengeId: bigint) {
   });
 }
 
+export function useHasVotedEarlySettle(challengeId: bigint, address?: `0x${string}`) {
+  return useReadContract({
+    address: STRIDE_CHALLENGE_ADDRESS,
+    abi: STRIDE_CHALLENGE_ABI,
+    functionName: "hasVotedEarlySettle",
+    args: address ? [challengeId, address] : undefined,
+    query: {
+      enabled: !!address,
+    },
+  });
+}
+
+export function useEarlySettleVoteStatus(challengeId: bigint) {
+  return useReadContract({
+    address: STRIDE_CHALLENGE_ADDRESS,
+    abi: STRIDE_CHALLENGE_ABI,
+    functionName: "getEarlySettleVoteStatus",
+    args: [challengeId],
+  });
+}
+
+export function useCharityAddress() {
+  return useReadContract({
+    address: STRIDE_CHALLENGE_ADDRESS,
+    abi: STRIDE_CHALLENGE_ABI,
+    functionName: "charityAddress",
+  });
+}
+
+export function useTotalDonatedToCharity() {
+  return useReadContract({
+    address: STRIDE_CHALLENGE_ADDRESS,
+    abi: STRIDE_CHALLENGE_ABI,
+    functionName: "totalDonatedToCharity",
+  });
+}
+
 export function useUserStats(address?: `0x${string}`) {
   return useReadContract({
     address: STRIDE_CHALLENGE_ADDRESS,
@@ -258,6 +295,29 @@ export function useCreatorCancelChallenge() {
 
   return {
     creatorCancelChallenge,
+    isPending,
+    isConfirming,
+    isSuccess,
+    error,
+    hash,
+  };
+}
+
+export function useVoteEarlySettle() {
+  const { writeContract, data: hash, isPending, error } = useWriteContract();
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash });
+
+  const voteEarlySettle = async (challengeId: bigint) => {
+    writeContract({
+      address: STRIDE_CHALLENGE_ADDRESS,
+      abi: STRIDE_CHALLENGE_ABI,
+      functionName: "voteEarlySettle",
+      args: [challengeId],
+    });
+  };
+
+  return {
+    voteEarlySettle,
     isPending,
     isConfirming,
     isSuccess,
