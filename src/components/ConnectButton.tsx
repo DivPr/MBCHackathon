@@ -34,10 +34,7 @@ export function ConnectButton() {
 
   return (
     <Wallet>
-      <ConnectWallet
-        withWalletAggregator={true}
-        className="!bg-gradient-to-r !from-stride-purple !to-stride-violet !text-white !font-semibold !py-2.5 !px-5 !rounded-xl hover:!opacity-90 !transition-all !shadow-lg !shadow-stride-purple/25 !border-0"
-      >
+      <ConnectWallet className="!bg-gradient-to-r !from-stride-purple !to-stride-violet !text-white !font-semibold !py-2.5 !px-5 !rounded-xl hover:!opacity-90 !transition-all !shadow-lg !shadow-stride-purple/25 !border-0">
         <Avatar className="h-6 w-6" />
         <Name className="!text-white" />
       </ConnectWallet>
