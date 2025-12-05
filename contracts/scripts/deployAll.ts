@@ -63,6 +63,13 @@ async function main() {
   console.log("📦 Step 4: Setting up USDC...");
 
   let usdcAddress: string;
+  const chainId = network.config.chainId;
+  const KNOWN_USDC: Record<number, string> = {
+    // Base Mainnet USDC
+    8453: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+    // Base Sepolia USDC (testnet)
+    84532: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+  };
 
   if (network.name === "localhost" || network.name === "hardhat") {
     // Deploy MockUSDC for local testing
@@ -77,10 +84,18 @@ async function main() {
     const usdcBalance = await mockUsdc.balanceOf(deployer.address);
     console.log("   💵 Deployer USDC Balance:", ethers.formatUnits(usdcBalance, 6), "USDC");
   } else {
-    // Use real Circle USDC on Base Sepolia
-    usdcAddress = "0x036CbD53842c5426634e7929541eC2318f3dCF7e";
+    const resolvedChainId = chainId ? Number(chainId) : undefined;
+    if (!resolvedChainId || !KNOWN_USDC[resolvedChainId]) {
+      throw new Error(
+        `No USDC address configured for network ${network.name} (chainId: ${resolvedChainId ?? "unknown"})`
+      );
+    }
+
+    usdcAddress = KNOWN_USDC[resolvedChainId];
     console.log("   🔵 Using Circle USDC:", usdcAddress);
-    console.log("   💡 Get testnet USDC: https://faucet.circle.com/");
+    if (resolvedChainId === 84532) {
+      console.log("   💡 Get testnet USDC: https://faucet.circle.com/");
+    }
   }
 
   // ============ Step 5: Deploy USDC Challenge Manager ============
