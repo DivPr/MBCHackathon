@@ -1,0 +1,118 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --color-lime: #BFFF00;
+  --color-dark: #0A0A0A;
+  --color-gray: #1A1A1A;
+}
+
+body {
+  background: linear-gradient(
+    180deg,
+    #0A0A0A 0%,
+    #0D0D0D 50%,
+    #0A0A0A 100%
+  );
+  background-attachment: fixed;
+}
+
+/* Subtle grid pattern overlay */
+body::before {
+  content: "";
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-image: 
+    linear-gradient(rgba(191, 255, 0, 0.02) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(191, 255, 0, 0.02) 1px, transparent 1px);
+  background-size: 40px 40px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #1A1A1A;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #333;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #444;
+}
+
+/* Button styles */
+@layer components {
+  .btn-primary {
+    @apply bg-stride-lime text-stride-dark font-bold py-3 px-6 rounded-lg 
+           hover:bg-opacity-90 transition-all duration-200 
+           active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .btn-secondary {
+    @apply bg-stride-gray border border-stride-muted text-white font-medium py-3 px-6 rounded-lg 
+           hover:border-stride-lime hover:text-stride-lime transition-all duration-200 
+           active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .card {
+    @apply bg-stride-gray border border-stride-muted/30 rounded-xl p-6;
+  }
+
+  .input {
+    @apply bg-stride-dark border border-stride-muted/50 rounded-lg px-4 py-3 
+           text-white placeholder-stride-muted focus:outline-none focus:border-stride-lime 
+           transition-colors duration-200 w-full;
+  }
+
+  .label {
+    @apply text-sm text-stride-muted mb-2 block;
+  }
+}
+
+/* Animation keyframes */
+@keyframes pulse-glow {
+  0%, 100% {
+    box-shadow: 0 0 20px rgba(191, 255, 0, 0.2);
+  }
+  50% {
+    box-shadow: 0 0 40px rgba(191, 255, 0, 0.4);
+  }
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-slide-up {
+  animation: slide-up 0.5s ease-out forwards;
+}
+
+/* Stagger animation delays */
+.stagger-1 { animation-delay: 0.1s; }
+.stagger-2 { animation-delay: 0.2s; }
+.stagger-3 { animation-delay: 0.3s; }
+.stagger-4 { animation-delay: 0.4s; }
+
