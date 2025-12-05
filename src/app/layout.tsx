@@ -29,6 +29,7 @@ export default function RootLayout({
     <html lang="en">
       <body
         className={`${syne.variable} ${ibmPlexMono.variable} font-display antialiased bg-stride-dark text-white min-h-screen`}
+        suppressHydrationWarning
       >
         <Providers>{children}</Providers>
       </body>

@@ -1,9 +1,13 @@
 import { Address } from "viem";
 
-// Contract address - Hardhat localhost deployment
+// Contract address on Base Sepolia - update after deployment
 export const STRIDE_CHALLENGE_ADDRESS: Address =
   (process.env.NEXT_PUBLIC_CONTRACT_ADDRESS as Address) ||
-  "0x5FbDB2315678afecb367f032d93F642f64180aa3";
+  "0x0000000000000000000000000000000000000000";
+
+// Check if contract is deployed
+export const isContractDeployed = 
+  STRIDE_CHALLENGE_ADDRESS !== "0x0000000000000000000000000000000000000000";
 
 // ABI for StrideChallengeManager
 export const STRIDE_CHALLENGE_ABI = [
@@ -143,4 +147,3 @@ export const STRIDE_CHALLENGE_ABI = [
     stateMutability: "nonpayable",
   },
 ] as const;
-

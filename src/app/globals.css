@@ -3,22 +3,23 @@
 @tailwind utilities;
 
 :root {
-  --color-lime: #BFFF00;
-  --color-dark: #0A0A0A;
-  --color-gray: #1A1A1A;
+  --color-purple: #A855F7;
+  --color-violet: #7C3AED;
+  --color-dark: #09090B;
+  --color-gray: #18181B;
 }
 
 body {
-  background: linear-gradient(
-    180deg,
-    #0A0A0A 0%,
-    #0D0D0D 50%,
-    #0A0A0A 100%
-  );
+  background: radial-gradient(
+    ellipse 80% 50% at 50% -20%,
+    rgba(124, 58, 237, 0.15),
+    transparent
+  ),
+  linear-gradient(180deg, #09090B 0%, #0D0D0F 100%);
   background-attachment: fixed;
 }
 
-/* Subtle grid pattern overlay */
+/* Grid pattern overlay */
 body::before {
   content: "";
   position: fixed;
@@ -27,9 +28,9 @@ body::before {
   width: 100%;
   height: 100%;
   background-image: 
-    linear-gradient(rgba(191, 255, 0, 0.02) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(191, 255, 0, 0.02) 1px, transparent 1px);
-  background-size: 40px 40px;
+    linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+  background-size: 60px 60px;
   pointer-events: none;
   z-index: 0;
 }
@@ -40,54 +41,56 @@ body::before {
 }
 
 ::-webkit-scrollbar-track {
-  background: #1A1A1A;
+  background: #18181B;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #333;
+  background: #3F3F46;
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #444;
+  background: #52525B;
 }
 
 /* Button styles */
 @layer components {
   .btn-primary {
-    @apply bg-stride-lime text-stride-dark font-bold py-3 px-6 rounded-lg 
-           hover:bg-opacity-90 transition-all duration-200 
-           active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed;
+    @apply bg-gradient-to-r from-stride-purple to-stride-violet text-white font-semibold py-3 px-6 rounded-xl 
+           hover:opacity-90 transition-all duration-200 
+           active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed
+           shadow-lg shadow-stride-purple/25;
   }
 
   .btn-secondary {
-    @apply bg-stride-gray border border-stride-muted text-white font-medium py-3 px-6 rounded-lg 
-           hover:border-stride-lime hover:text-stride-lime transition-all duration-200 
+    @apply bg-stride-gray border border-white/20 text-white font-medium py-3 px-6 rounded-xl 
+           hover:border-stride-purple hover:bg-stride-purple/10 transition-all duration-200 
            active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed;
   }
 
   .card {
-    @apply bg-stride-gray border border-stride-muted/30 rounded-xl p-6;
+    @apply bg-stride-gray/50 border border-white/10 rounded-2xl p-6 backdrop-blur-sm;
   }
 
   .input {
-    @apply bg-stride-dark border border-stride-muted/50 rounded-lg px-4 py-3 
-           text-white placeholder-stride-muted focus:outline-none focus:border-stride-lime 
-           transition-colors duration-200 w-full;
+    @apply bg-stride-dark border border-white/20 rounded-xl px-4 py-3 
+           text-white placeholder-stride-muted focus:outline-none focus:border-stride-purple 
+           focus:ring-1 focus:ring-stride-purple/50
+           transition-all duration-200 w-full;
   }
 
   .label {
-    @apply text-sm text-stride-muted mb-2 block;
+    @apply text-sm text-stride-muted mb-2 block font-medium;
   }
 }
 
 /* Animation keyframes */
 @keyframes pulse-glow {
   0%, 100% {
-    box-shadow: 0 0 20px rgba(191, 255, 0, 0.2);
+    box-shadow: 0 0 20px rgba(168, 85, 247, 0.3);
   }
   50% {
-    box-shadow: 0 0 40px rgba(191, 255, 0, 0.4);
+    box-shadow: 0 0 40px rgba(168, 85, 247, 0.5);
   }
 }
 
@@ -107,7 +110,20 @@ body::before {
 }
 
 .animate-slide-up {
-  animation: slide-up 0.5s ease-out forwards;
+  animation: slide-up 0.4s ease-out forwards;
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+.animate-float {
+  animation: float 3s ease-in-out infinite;
 }
 
 /* Stagger animation delays */
@@ -116,3 +132,7 @@ body::before {
 .stagger-3 { animation-delay: 0.3s; }
 .stagger-4 { animation-delay: 0.4s; }
 
+/* Gradient text */
+.gradient-text {
+  @apply bg-gradient-to-r from-stride-purple to-pink-500 bg-clip-text text-transparent;
+}

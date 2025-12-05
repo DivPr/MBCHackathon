@@ -10,10 +10,12 @@ export default {
     extend: {
       colors: {
         stride: {
-          lime: "#BFFF00",
-          dark: "#0A0A0A",
-          gray: "#1A1A1A",
-          muted: "#666666",
+          purple: "#A855F7",
+          violet: "#7C3AED",
+          dark: "#09090B",
+          gray: "#18181B",
+          muted: "#71717A",
+          border: "#27272A",
         },
       },
       fontFamily: {
@@ -24,4 +26,3 @@ export default {
   },
   plugins: [],
 } satisfies Config;
-

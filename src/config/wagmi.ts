@@ -1,21 +1,29 @@
 import { http, createConfig } from "wagmi";
-import { hardhat } from "wagmi/chains";
-import { injected } from "wagmi/connectors";
+import { baseSepolia } from "wagmi/chains";
+import { coinbaseWallet, injected } from "wagmi/connectors";
 
-// Local Hardhat network for development
+// Base Sepolia configuration for hackathon deployment
 export const config = createConfig({
-  chains: [hardhat],
+  chains: [baseSepolia],
   connectors: [
+    // Coinbase Smart Wallet - Account Abstraction (ERC-4337)
+    coinbaseWallet({
+      appName: "Stride",
+      preference: "smartWalletOnly", // Forces smart wallet for AA benefits
+    }),
+    // Fallback for MetaMask and other injected wallets
     injected(),
   ],
   transports: {
-    [hardhat.id]: http("http://127.0.0.1:8545"),
+    [baseSepolia.id]: http("https://sepolia.base.org"),
   },
 });
+
+// Export chain for use elsewhere
+export const activeChain = baseSepolia;
 
 declare module "wagmi" {
   interface Register {
     config: typeof config;
   }
 }
-

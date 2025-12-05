@@ -1,127 +1,57 @@
 "use client";
 
-import { useAccount, useConnect, useDisconnect } from "wagmi";
-import { useState } from "react";
+import {
+  ConnectWallet,
+  Wallet,
+  WalletDropdown,
+  WalletDropdownDisconnect,
+} from "@coinbase/onchainkit/wallet";
+import {
+  Address,
+  Avatar,
+  Name,
+  Identity,
+} from "@coinbase/onchainkit/identity";
+import { useState, useEffect } from "react";
 
 export function ConnectButton() {
-  const { address, isConnected } = useAccount();
-  const { connect, connectors, isPending } = useConnect();
-  const { disconnect } = useDisconnect();
-  const [showDropdown, setShowDropdown] = useState(false);
+  const [mounted, setMounted] = useState(false);
 
-  if (isConnected && address) {
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted) {
     return (
-      <div className="relative">
-        <button
-          onClick={() => setShowDropdown(!showDropdown)}
-          className="btn-secondary flex items-center gap-2 py-2 px-4"
-        >
-          <div className="w-2 h-2 bg-stride-lime rounded-full" />
-          <span className="font-mono text-sm">
-            {address.slice(0, 6)}...{address.slice(-4)}
-          </span>
-          <svg
-            className={`w-4 h-4 transition-transform ${showDropdown ? "rotate-180" : ""}`}
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-          </svg>
-        </button>
-
-        {showDropdown && (
-          <>
-            <div
-              className="fixed inset-0 z-40"
-              onClick={() => setShowDropdown(false)}
-            />
-            <div className="absolute right-0 mt-2 w-48 bg-stride-gray border border-stride-muted/30 rounded-lg shadow-xl z-50">
-              <div className="p-3 border-b border-stride-muted/30">
-                <p className="text-xs text-stride-muted">Connected to</p>
-                <p className="text-sm font-mono truncate">{address}</p>
-              </div>
-              <button
-                onClick={() => {
-                  disconnect();
-                  setShowDropdown(false);
-                }}
-                className="w-full text-left px-3 py-2 text-sm text-red-400 hover:bg-stride-dark/50 rounded-b-lg transition-colors"
-              >
-                Disconnect
-              </button>
-            </div>
-          </>
-        )}
-      </div>
+      <button className="btn-secondary py-2 px-6 opacity-50" disabled>
+        <span className="flex items-center gap-2">
+          <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+          Loading
+        </span>
+      </button>
     );
   }
 
   return (
-    <div className="relative">
-      <button
-        onClick={() => setShowDropdown(!showDropdown)}
-        disabled={isPending}
-        className="btn-primary py-2 px-6"
+    <Wallet>
+      <ConnectWallet
+        withWalletAggregator={true}
+        className="!bg-gradient-to-r !from-stride-purple !to-stride-violet !text-white !font-semibold !py-2.5 !px-5 !rounded-xl hover:!opacity-90 !transition-all !shadow-lg !shadow-stride-purple/25 !border-0"
       >
-        {isPending ? "Connecting..." : "Connect Wallet"}
-      </button>
-
-      {showDropdown && (
-        <>
-          <div
-            className="fixed inset-0 z-40"
-            onClick={() => setShowDropdown(false)}
-          />
-          <div className="absolute right-0 mt-2 w-64 bg-stride-gray border border-stride-muted/30 rounded-lg shadow-xl z-50 overflow-hidden">
-            <div className="p-3 border-b border-stride-muted/30">
-              <p className="text-sm font-medium">Select Wallet</p>
-            </div>
-            <div className="p-2">
-              {connectors.map((connector) => (
-                <button
-                  key={connector.uid}
-                  onClick={() => {
-                    connect({ connector });
-                    setShowDropdown(false);
-                  }}
-                  className="w-full text-left px-3 py-3 text-sm hover:bg-stride-dark/50 rounded-lg transition-colors flex items-center gap-3"
-                >
-                  {connector.name === "Coinbase Wallet" && (
-                    <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-                      <span className="text-white font-bold">C</span>
-                    </div>
-                  )}
-                  {connector.name === "Injected" && (
-                    <div className="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center">
-                      <span className="text-white font-bold">M</span>
-                    </div>
-                  )}
-                  {connector.name !== "Coinbase Wallet" &&
-                    connector.name !== "Injected" && (
-                      <div className="w-8 h-8 bg-stride-muted rounded-lg flex items-center justify-center">
-                        <span className="text-white font-bold">W</span>
-                      </div>
-                    )}
-                  <div>
-                    <p className="font-medium">
-                      {connector.name === "Injected"
-                        ? "MetaMask"
-                        : connector.name}
-                    </p>
-                    <p className="text-xs text-stride-muted">
-                      {connector.name === "Coinbase Wallet"
-                        ? "Smart Wallet"
-                        : "Browser Wallet"}
-                    </p>
-                  </div>
-                </button>
-              ))}
-            </div>
-          </div>
-        </>
-      )}
-    </div>
+        <Avatar className="h-6 w-6" />
+        <Name className="!text-white" />
+      </ConnectWallet>
+      <WalletDropdown className="!bg-stride-gray !border !border-white/10 !rounded-xl !shadow-2xl">
+        <Identity
+          className="!px-4 !pt-3 !pb-2"
+          hasCopyAddressOnClick={true}
+        >
+          <Avatar />
+          <Name className="!text-white !font-medium" />
+          <Address className="!text-stride-muted !font-mono !text-sm" />
+        </Identity>
+        <WalletDropdownDisconnect className="!text-red-400 hover:!bg-red-500/10 !rounded-lg !mx-2 !mb-2" />
+      </WalletDropdown>
+    </Wallet>
   );
 }
-
