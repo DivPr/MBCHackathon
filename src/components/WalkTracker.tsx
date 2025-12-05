@@ -80,13 +80,7 @@ export function WalkTracker({ challengeId, onWalkComplete }: WalkTrackerProps) {
   const gpsIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const lastPositionRef = useRef<{ lat: number; lon: number; t: number } | null>(null);
 
-  // Load walk history on mount
-  useEffect(() => {
-    if (challengeId) {
-      loadWalkHistory();
-    }
-  }, [challengeId, loadWalkHistory]);
-
+  // Load walk history function
   const loadWalkHistory = useCallback(async () => {
     if (!challengeId) return;
     
@@ -102,6 +96,13 @@ export function WalkTracker({ challengeId, onWalkComplete }: WalkTrackerProps) {
       console.error("Failed to load walk history:", error);
     }
   }, [challengeId]);
+
+  // Load walk history on mount
+  useEffect(() => {
+    if (challengeId) {
+      loadWalkHistory();
+    }
+  }, [challengeId, loadWalkHistory]);
 
   // Update elapsed time every second
   useEffect(() => {
