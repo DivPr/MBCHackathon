@@ -162,7 +162,8 @@ export function WalkTracker({ challengeId, onWalkComplete }: WalkTrackerProps) {
 
           // DRIFT FILTERS:
           // 1. Minimum movement threshold (ignore GPS noise)
-          const minMovementMeters = Math.max(8, accuracy * 0.5); // At least 8m or half accuracy
+          // Lowered to allow normal walking increments (~5-7m per 5s) while still scaling with accuracy
+          const minMovementMeters = Math.max(3, accuracy * 0.15);
           
           // 2. Speed filter: walking is typically 3-6 km/h, ignore < 1.5 km/h (drift)
           const isLikelyStationary = speedKmh < 1.5;
