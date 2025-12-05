@@ -77,7 +77,7 @@ export function WalkTracker({ challengeId, onWalkComplete }: WalkTrackerProps) {
   const startTimeRef = useRef<number>(0);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const gpsIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const lastPositionRef = useRef<{ lat: number; lon: number } | null>(null);
+  const lastPositionRef = useRef<{ lat: number; lon: number; t: number } | null>(null);
 
   // Load walk history on mount
   useEffect(() => {
@@ -123,6 +123,7 @@ export function WalkTracker({ challengeId, onWalkComplete }: WalkTrackerProps) {
     navigator.geolocation.getCurrentPosition(
       (position) => {
         const { latitude, longitude, accuracy } = position.coords;
+        const now = Date.now();
 
         // Check if this is IP-based fallback (accuracy > 1000m is definitely not GPS)
         if (accuracy > 1000) {
@@ -139,11 +140,11 @@ export function WalkTracker({ challengeId, onWalkComplete }: WalkTrackerProps) {
         const newSample: GpsSample = {
           lat: latitude,
           lon: longitude,
-          t: Date.now(),
+          t: now,
         };
 
         // Calculate distance from last point
-        if (lastPositionRef.current) {
+        if (lastPositionRef.current && lastPositionRef.current.t) {
           const jump = haversineDistance(
             lastPositionRef.current.lat,
             lastPositionRef.current.lon,
@@ -151,18 +152,41 @@ export function WalkTracker({ challengeId, onWalkComplete }: WalkTrackerProps) {
             longitude
           );
 
-          // Anti-cheat: Flag if jump > 200m (0.2km)
+          const jumpMeters = jump * 1000; // Convert to meters
+          const timeDelta = (now - lastPositionRef.current.t) / 1000; // seconds
+          
+          // Calculate speed in km/h
+          const speedKmh = timeDelta > 0 ? (jump / timeDelta) * 3600 : 0;
+
+          // DRIFT FILTERS:
+          // 1. Minimum movement threshold (ignore GPS noise)
+          const minMovementMeters = Math.max(8, accuracy * 0.5); // At least 8m or half accuracy
+          
+          // 2. Speed filter: walking is typically 3-6 km/h, ignore < 1.5 km/h (drift)
+          const isLikelyStationary = speedKmh < 1.5;
+          
+          // 3. Max speed: > 20 km/h is not walking (probably in vehicle or GPS jump)
+          const isTooFast = speedKmh > 20;
+
+          // Anti-cheat: Flag if jump > 200m between samples
           if (jump > 0.2) {
             setSuspicious(true);
             setStatus("Suspicious jump detected");
           }
 
-          setDistance((prev) => prev + jump);
+          // Only count distance if it passes all filters
+          if (jumpMeters >= minMovementMeters && !isLikelyStationary && !isTooFast) {
+            setDistance((prev) => prev + jump);
+            setStatus(`GPS: ±${Math.round(accuracy)}m | ${speedKmh.toFixed(1)} km/h`);
+          } else {
+            setStatus(`GPS: ±${Math.round(accuracy)}m (stationary)`);
+          }
+        } else {
+          setStatus(`GPS locked: ±${Math.round(accuracy)}m`);
         }
 
-        lastPositionRef.current = { lat: latitude, lon: longitude };
+        lastPositionRef.current = { lat: latitude, lon: longitude, t: now };
         setSamples((prev) => [...prev, newSample]);
-        setStatus(`GPS: ±${Math.round(accuracy)}m ✓`);
       },
       (error) => {
         if (error.code === error.PERMISSION_DENIED) {
