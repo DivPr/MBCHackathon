@@ -4,6 +4,7 @@ import { useAccount } from "wagmi";
 import Link from "next/link";
 import { ConnectButton } from "@/components/ConnectButton";
 import { Navbar } from "@/components/Navbar";
+import { PoweredByCircle, CircleLogo } from "@/components/USDCStakeButton";
 import { useState, useEffect } from "react";
 
 export default function Home() {
@@ -33,9 +34,12 @@ export default function Home() {
             <span className="gradient-text">Win Together</span>
           </h1>
           <p className="text-stride-muted text-lg md:text-xl max-w-2xl mx-auto mb-8">
-            Create fitness challenges with friends. Stake ETH to stay accountable.
+            Create fitness challenges with friends. Stake USDC to stay accountable.
             Complete your goal and split the prize pool.
           </p>
+          <div className="flex justify-center mb-6">
+            <PoweredByCircle />
+          </div>
           
           {mounted && (
             <Link
@@ -61,14 +65,12 @@ export default function Home() {
             <div className="text-lg md:text-xl font-bold mb-1">Base</div>
             <div className="text-xs md:text-sm text-stride-muted">Sepolia Testnet</div>
           </div>
-          <div className="card text-center py-4 md:py-6 border-white/10">
-            <div className="w-10 h-10 mx-auto mb-2 bg-gradient-to-br from-stride-purple to-pink-500 rounded-xl flex items-center justify-center">
-              <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
+          <div className="card text-center py-4 md:py-6 border-usdc-blue/30 bg-usdc-blue/5">
+            <div className="w-10 h-10 mx-auto mb-2 bg-usdc-blue rounded-xl flex items-center justify-center">
+              <CircleLogo className="w-6 h-6" />
             </div>
-            <div className="text-lg md:text-xl font-bold mb-1">ETH</div>
-            <div className="text-xs md:text-sm text-stride-muted">Stake Token</div>
+            <div className="text-lg md:text-xl font-bold mb-1 text-usdc-blue">USDC</div>
+            <div className="text-xs md:text-sm text-stride-muted">Powered by Circle</div>
           </div>
           <div className="card text-center py-4 md:py-6 border-white/10">
             <div className="w-10 h-10 mx-auto mb-2 bg-gradient-to-br from-green-500 to-emerald-500 rounded-xl flex items-center justify-center">
@@ -128,7 +130,7 @@ export default function Home() {
         <div className="grid md:grid-cols-4 gap-4 md:gap-6">
           {[
             { step: "01", title: "Create Group", desc: "Start a fitness group with friends", icon: "M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z", color: "from-stride-purple to-violet-600" },
-            { step: "02", title: "Challenge", desc: "Create a challenge & stake ETH", icon: "M13 10V3L4 14h7v7l9-11h-7z", color: "from-blue-500 to-cyan-500" },
+            { step: "02", title: "Challenge", desc: "Create a challenge & stake USDC", icon: "M13 10V3L4 14h7v7l9-11h-7z", color: "from-usdc-blue to-blue-400" },
             { step: "03", title: "Complete", desc: "Finish your fitness goal", icon: "M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z", color: "from-green-500 to-emerald-500" },
             { step: "04", title: "Win", desc: "Split the prize pool", icon: "M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z", color: "from-yellow-500 to-orange-500" },
           ].map((item, i) => (
@@ -198,9 +200,15 @@ export default function Home() {
             </div>
             <span className="font-bold">Stride</span>
           </div>
-          <p className="text-stride-muted text-sm">
-            Built for MBC Hackathon 2025 • Powered by Base
-          </p>
+          <div className="flex items-center gap-4 text-stride-muted text-sm">
+            <span>Built for MBC Hackathon 2025</span>
+            <span>•</span>
+            <span className="flex items-center gap-1">
+              Powered by <span className="text-usdc-blue font-medium">Circle USDC</span>
+            </span>
+            <span>•</span>
+            <span>Built on Base</span>
+          </div>
         </div>
       </footer>
     </main>

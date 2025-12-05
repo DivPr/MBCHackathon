@@ -15,8 +15,12 @@ export default function GroupsPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showJoinModal, setShowJoinModal] = useState(false);
   
-  const { data: groupCount, isLoading: loadingCount, refetch: refetchGroupCount } = useGroupCount();
-  const { data: userGroupIds, refetch: refetchUserGroups } = useUserGroups(address);
+  const { data: groupCount, isLoading: loadingCount, error: groupCountError, refetch: refetchGroupCount } = useGroupCount();
+  const { data: userGroupIds, isLoading: loadingUserGroups, error: userGroupsError, refetch: refetchUserGroups } = useUserGroups(address);
+
+  // Combined loading state - only show loading if actually loading (not on error)
+  const isLoading = (loadingCount && !groupCountError) || (loadingUserGroups && !userGroupsError);
+  const hasError = groupCountError || userGroupsError;
 
   const handleGroupCreated = () => {
     refetchGroupCount();
@@ -94,7 +98,28 @@ export default function GroupsPage() {
               <ConnectButton />
             </div>
           </div>
-        ) : loadingCount ? (
+        ) : hasError ? (
+          <div className="card text-center py-12 border-red-500/20 bg-red-500/5">
+            <div className="w-16 h-16 bg-red-500/20 rounded-2xl flex items-center justify-center mx-auto mb-4">
+              <svg className="w-8 h-8 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+            </div>
+            <h3 className="text-lg font-medium mb-2 text-red-400">Unable to Load Groups</h3>
+            <p className="text-stride-muted max-w-sm mx-auto mb-4">
+              There was an error connecting to the smart contract. Make sure you&apos;re connected to the correct network.
+            </p>
+            <button
+              onClick={() => {
+                refetchGroupCount();
+                refetchUserGroups();
+              }}
+              className="btn-secondary py-2 px-4 text-sm"
+            >
+              Try Again
+            </button>
+          </div>
+        ) : isLoading ? (
           <div className="grid gap-4">
             {[1, 2, 3].map((i) => (
               <div key={i} className="card animate-pulse border-white/10">

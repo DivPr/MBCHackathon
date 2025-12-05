@@ -23,8 +23,11 @@ export function CreateGroupModal({ onClose, onSuccess }: CreateGroupModalProps) 
 
   useEffect(() => {
     if (isSuccess) {
+      // Small delay to ensure blockchain state has propagated before refetching
+      setTimeout(() => {
       onSuccess?.();
-      setTimeout(() => onClose(), 1500);
+      }, 500);
+      setTimeout(() => onClose(), 2000);
     }
   }, [isSuccess, onClose, onSuccess]);
 

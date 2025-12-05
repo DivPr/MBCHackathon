@@ -11,11 +11,12 @@ interface GroupCardProps {
 
 export function GroupCard({ groupId, showJoinButton }: GroupCardProps) {
   const { address } = useAccount();
-  const { data: group, isLoading } = useGroup(groupId);
+  const { data: group, isLoading, error } = useGroup(groupId);
   const { data: isMember } = useIsMember(groupId, address);
   const { joinGroup, isPending, isConfirming } = useJoinGroup();
 
-  if (isLoading || !group) {
+  // Show loading skeleton only while loading (not on error)
+  if (isLoading) {
     return (
       <div className="card animate-pulse border-white/10">
         <div className="flex items-start gap-4">
@@ -29,7 +30,17 @@ export function GroupCard({ groupId, showJoinButton }: GroupCardProps) {
     );
   }
 
-  const [id, name, description, creator, memberCount, challengeCount, createdAt, isPrivate] = group;
+  // Handle error or missing data
+  if (error || !group) {
+    return null; // Don't render anything if there's an error or no data
+  }
+
+  const [id, name, description, creator, memberCount, challengeCount, createdAt, isPrivate, deleted] = group;
+
+  // Don't show deleted groups
+  if (deleted) {
+    return null;
+  }
 
   // Don't show private groups in the public list
   if (showJoinButton && isPrivate) {

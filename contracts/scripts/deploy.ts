@@ -30,6 +30,12 @@ async function main() {
   const groupsAddress = await groups.getAddress();
   console.log("StrideGroups deployed to:", groupsAddress);
 
+  // Connect the contracts - set StrideGroups on StrideChallengeManager
+  console.log("\nConnecting contracts...");
+  const setGroupsTx = await manager.setStrideGroups(groupsAddress);
+  await setGroupsTx.wait();
+  console.log("StrideChallengeManager now connected to StrideGroups");
+
   console.log("\n=====================================");
   console.log("Next Steps:");
   console.log("=====================================");

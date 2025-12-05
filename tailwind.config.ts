@@ -17,6 +17,9 @@ export default {
           muted: "#71717A",
           border: "#27272A",
         },
+        usdc: {
+          blue: "#2775CA",
+        },
       },
       fontFamily: {
         display: ["var(--font-syne)", "system-ui", "sans-serif"],

@@ -8,6 +8,8 @@ import { ConnectButton } from "@/components/ConnectButton";
 import { Navbar } from "@/components/Navbar";
 import { useUserStats, useChallengeCount, useChallenge, useHasJoined, useHasCompleted } from "@/hooks/useChallenge";
 import { useUserGroups, useGroup } from "@/hooks/useGroups";
+import { useUserNFTs, useTokenURI, useTokenOwner } from "@/hooks/useNFT";
+import { isNFTContractDeployed } from "@/config/nftContract";
 
 // Mini Challenge Card for profile display
 function MiniChallengeCard({ challengeId, userAddress }: { challengeId: bigint; userAddress?: `0x${string}` }) {
@@ -188,6 +190,93 @@ function MiniGroupCard({ groupId }: { groupId: bigint }) {
   );
 }
 
+// NFT Card Component
+function NFTCard({ tokenId, userAddress }: { tokenId: number; userAddress: `0x${string}` }) {
+  const { metadata, imageUrl, isLoading } = useTokenURI(tokenId);
+  const { owner } = useTokenOwner(tokenId);
+
+  // Only show if user owns this token
+  if (owner?.toLowerCase() !== userAddress.toLowerCase()) {
+    return null;
+  }
+
+  if (isLoading) {
+    return (
+      <div className="bg-white/5 rounded-xl p-4 animate-pulse">
+        <div className="aspect-square bg-white/10 rounded-lg mb-3" />
+        <div className="h-4 bg-white/10 rounded w-2/3 mb-2" />
+        <div className="h-3 bg-white/10 rounded w-1/2" />
+      </div>
+    );
+  }
+
+  if (!metadata) {
+    return null;
+  }
+
+  return (
+    <div className="bg-gradient-to-br from-white/5 to-white/10 rounded-xl p-4 border border-white/10 hover:border-stride-purple/50 transition-all group">
+      {/* NFT Image */}
+      <div className="aspect-square rounded-lg overflow-hidden mb-3 bg-stride-dark">
+        {imageUrl && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img 
+            src={imageUrl} 
+            alt={metadata.name || `NFT #${tokenId}`}
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+          />
+        )}
+      </div>
+      
+      {/* NFT Info */}
+      <h4 className="font-bold text-sm mb-1 truncate">{metadata.name || `Badge #${tokenId}`}</h4>
+      <p className="text-xs text-stride-muted line-clamp-2">{metadata.description?.slice(0, 60)}...</p>
+      
+      {/* Attributes */}
+      {metadata.attributes && metadata.attributes.length > 0 && (
+        <div className="mt-3 flex flex-wrap gap-1">
+          {metadata.attributes.slice(0, 2).map((attr: { trait_type: string; value: string }, i: number) => (
+            <span 
+              key={i}
+              className="text-[10px] px-2 py-0.5 bg-stride-purple/20 text-stride-purple rounded-full"
+            >
+              {attr.trait_type}: {attr.value}
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// NFTs Grid Component
+function NFTsGrid({ userAddress, totalSupply }: { userAddress: `0x${string}`; totalSupply: number }) {
+  // Generate array of token IDs to check (0 to totalSupply - 1)
+  const tokenIds = Array.from({ length: totalSupply }, (_, i) => i);
+
+  if (totalSupply === 0) {
+    return (
+      <div className="text-center py-12">
+        <div className="w-16 h-16 bg-gradient-to-br from-stride-purple/20 to-pink-500/20 rounded-2xl flex items-center justify-center mx-auto mb-4">
+          <svg className="w-8 h-8 text-stride-purple" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+          </svg>
+        </div>
+        <p className="text-stride-muted mb-4">No NFTs minted yet</p>
+        <p className="text-xs text-stride-muted">Complete challenges to earn NFT badges!</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+      {tokenIds.map((id) => (
+        <NFTCard key={id} tokenId={id} userAddress={userAddress} />
+      ))}
+    </div>
+  );
+}
+
 // Achievement Badge Component
 function AchievementBadge({ 
   icon, 
@@ -244,10 +333,11 @@ function AnimatedStat({ value, label, color }: { value: number | string; label: 
 export default function ProfilePage() {
   const { address, isConnected } = useAccount();
   const [mounted, setMounted] = useState(false);
-  const [activeTab, setActiveTab] = useState<"overview" | "challenges" | "groups" | "achievements">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "challenges" | "groups" | "achievements" | "nfts">("overview");
   
   const { data: stats, isLoading: loadingStats } = useUserStats(address);
   const { data: userGroups, isLoading: loadingGroups } = useUserGroups(address);
+  const { totalSupply: nftTotalSupply, balance: nftBalance } = useUserNFTs(address);
 
   useEffect(() => {
     setMounted(true);
@@ -456,6 +546,7 @@ export default function ProfilePage() {
                 { id: "challenges", label: "My Challenges", icon: "M13 10V3L4 14h7v7l9-11h-7z" },
                 { id: "groups", label: "My Groups", icon: "M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" },
                 { id: "achievements", label: "Achievements", icon: "M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" },
+                { id: "nfts", label: `NFTs${nftBalance > 0 ? ` (${nftBalance})` : ""}`, icon: "M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" },
               ].map((tab) => (
                 <button
                   key={tab.id}
@@ -649,6 +740,57 @@ export default function ProfilePage() {
                     <AchievementBadge key={i} {...achievement} />
                   ))}
                 </div>
+              </div>
+            )}
+
+            {activeTab === "nfts" && (
+              <div className="space-y-6">
+                {!isNFTContractDeployed ? (
+                  <div className="card border-white/10 text-center py-12">
+                    <div className="w-16 h-16 bg-gradient-to-br from-yellow-500/20 to-orange-500/20 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                      <svg className="w-8 h-8 text-yellow-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                      </svg>
+                    </div>
+                    <h3 className="text-lg font-bold mb-2">NFT Contract Not Deployed</h3>
+                    <p className="text-stride-muted">The NFT contract is not yet deployed on this network.</p>
+                  </div>
+                ) : (
+                  <>
+                    {/* Stats Bar */}
+                    <div className="card border-white/10">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-4">
+                          <div className="w-12 h-12 bg-gradient-to-br from-stride-purple to-pink-500 rounded-xl flex items-center justify-center">
+                            <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                            </svg>
+                          </div>
+                          <div>
+                            <h3 className="font-bold text-lg">Your NFT Collection</h3>
+                            <p className="text-sm text-stride-muted">Champion badges earned from challenges</p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-2xl font-bold text-stride-purple">{nftBalance}</div>
+                          <div className="text-xs text-stride-muted">NFTs Owned</div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* NFT Grid */}
+                    {address && (
+                      <NFTsGrid userAddress={address} totalSupply={nftTotalSupply} />
+                    )}
+
+                    {nftBalance === 0 && nftTotalSupply > 0 && (
+                      <div className="text-center py-8">
+                        <p className="text-stride-muted mb-2">You don&apos;t own any NFTs yet.</p>
+                        <p className="text-xs text-stride-muted">Complete challenges to earn NFT badges!</p>
+                      </div>
+                    )}
+                  </>
+                )}
               </div>
             )}
 

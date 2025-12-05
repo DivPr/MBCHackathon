@@ -1,17 +1,139 @@
 import { Address } from "viem";
 
-// Contract address - update after deployment
-// Localhost Hardhat: 0x610178dA211FEF7D417bC0e6FeD39F05609AD788
-export const STRIDE_CHALLENGE_ADDRESS: Address =
-  ((process.env.NEXT_PUBLIC_CONTRACT_ADDRESS?.trim()) as Address) ||
-  "0x610178dA211FEF7D417bC0e6FeD39F05609AD788";
+// ============ Circle USDC Configuration ============
+// USDC is the leading dollar-backed stablecoin by Circle
+// https://developers.circle.com/
 
-// Check if contract is deployed
-export const isContractDeployed = 
-  STRIDE_CHALLENGE_ADDRESS !== "0x0000000000000000000000000000000000000000";
+// USDC Contract Addresses
+// Base Sepolia: Official Circle USDC testnet deployment
+export const USDC_ADDRESS: Address = 
+  (process.env.NEXT_PUBLIC_USDC_ADDRESS as Address) ||
+  "0x036CbD53842c5426634e7929541eC2318f3dCF7e"; // Base Sepolia USDC
 
-// ABI for StrideChallengeManager
-export const STRIDE_CHALLENGE_ABI = [
+// Stride USDC Challenge Manager (deploy and update this)
+export const STRIDE_USDC_CHALLENGE_ADDRESS: Address =
+  (process.env.NEXT_PUBLIC_USDC_CONTRACT_ADDRESS as Address) ||
+  "0x0000000000000000000000000000000000000000";
+
+// USDC has 6 decimals (not 18 like ETH)
+export const USDC_DECIMALS = 6;
+
+// Helper to format USDC amounts
+export function formatUSDC(amount: bigint): string {
+  const formatted = Number(amount) / Math.pow(10, USDC_DECIMALS);
+  return formatted.toLocaleString("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
+// Helper to parse USDC amounts (string to bigint)
+export function parseUSDC(amount: string): bigint {
+  const parsed = parseFloat(amount);
+  if (isNaN(parsed)) return BigInt(0);
+  return BigInt(Math.floor(parsed * Math.pow(10, USDC_DECIMALS)));
+}
+
+// Standard ERC20 ABI (for USDC interactions)
+export const ERC20_ABI = [
+  {
+    type: "function",
+    name: "name",
+    inputs: [],
+    outputs: [{ name: "", type: "string" }],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "symbol",
+    inputs: [],
+    outputs: [{ name: "", type: "string" }],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "decimals",
+    inputs: [],
+    outputs: [{ name: "", type: "uint8" }],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "totalSupply",
+    inputs: [],
+    outputs: [{ name: "", type: "uint256" }],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "balanceOf",
+    inputs: [{ name: "account", type: "address" }],
+    outputs: [{ name: "", type: "uint256" }],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "allowance",
+    inputs: [
+      { name: "owner", type: "address" },
+      { name: "spender", type: "address" },
+    ],
+    outputs: [{ name: "", type: "uint256" }],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "approve",
+    inputs: [
+      { name: "spender", type: "address" },
+      { name: "amount", type: "uint256" },
+    ],
+    outputs: [{ name: "", type: "bool" }],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
+    name: "transfer",
+    inputs: [
+      { name: "to", type: "address" },
+      { name: "amount", type: "uint256" },
+    ],
+    outputs: [{ name: "", type: "bool" }],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
+    name: "transferFrom",
+    inputs: [
+      { name: "from", type: "address" },
+      { name: "to", type: "address" },
+      { name: "amount", type: "uint256" },
+    ],
+    outputs: [{ name: "", type: "bool" }],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "event",
+    name: "Transfer",
+    inputs: [
+      { name: "from", type: "address", indexed: true },
+      { name: "to", type: "address", indexed: true },
+      { name: "value", type: "uint256", indexed: false },
+    ],
+  },
+  {
+    type: "event",
+    name: "Approval",
+    inputs: [
+      { name: "owner", type: "address", indexed: true },
+      { name: "spender", type: "address", indexed: true },
+      { name: "value", type: "uint256", indexed: false },
+    ],
+  },
+] as const;
+
+// Stride USDC Challenge Manager ABI
+export const STRIDE_USDC_CHALLENGE_ABI = [
   // Events
   {
     type: "event",
@@ -31,6 +153,7 @@ export const STRIDE_CHALLENGE_ABI = [
     inputs: [
       { name: "challengeId", type: "uint256", indexed: true },
       { name: "participant", type: "address", indexed: true },
+      { name: "stakeAmount", type: "uint256", indexed: false },
     ],
   },
   {
@@ -60,16 +183,21 @@ export const STRIDE_CHALLENGE_ABI = [
   },
   {
     type: "event",
-    name: "CancelVoteCast",
+    name: "DonatedToCharity",
     inputs: [
       { name: "challengeId", type: "uint256", indexed: true },
-      { name: "voter", type: "address", indexed: true },
-      { name: "totalVotes", type: "uint256", indexed: false },
-      { name: "requiredVotes", type: "uint256", indexed: false },
+      { name: "amount", type: "uint256", indexed: false },
     ],
   },
 
   // Read functions
+  {
+    type: "function",
+    name: "usdc",
+    inputs: [],
+    outputs: [{ name: "", type: "address" }],
+    stateMutability: "view",
+  },
   {
     type: "function",
     name: "challengeCount",
@@ -156,6 +284,26 @@ export const STRIDE_CHALLENGE_ABI = [
   },
   {
     type: "function",
+    name: "hasVotedEarlySettle",
+    inputs: [
+      { name: "challengeId", type: "uint256" },
+      { name: "user", type: "address" },
+    ],
+    outputs: [{ name: "", type: "bool" }],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "getEarlySettleVoteStatus",
+    inputs: [{ name: "challengeId", type: "uint256" }],
+    outputs: [
+      { name: "votes", type: "uint256" },
+      { name: "required", type: "uint256" },
+    ],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
     name: "getUserStats",
     inputs: [{ name: "user", type: "address" }],
     outputs: [
@@ -175,6 +323,27 @@ export const STRIDE_CHALLENGE_ABI = [
     ],
     stateMutability: "view",
   },
+  {
+    type: "function",
+    name: "charityAddress",
+    inputs: [],
+    outputs: [{ name: "", type: "address" }],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "totalDonatedToCharity",
+    inputs: [],
+    outputs: [{ name: "", type: "uint256" }],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "getUSDCAddress",
+    inputs: [],
+    outputs: [{ name: "", type: "address" }],
+    stateMutability: "view",
+  },
 
   // Write functions
   {
@@ -186,7 +355,7 @@ export const STRIDE_CHALLENGE_ABI = [
       { name: "description", type: "string" },
     ],
     outputs: [{ name: "challengeId", type: "uint256" }],
-    stateMutability: "payable",
+    stateMutability: "nonpayable",
   },
   {
     type: "function",
@@ -198,14 +367,14 @@ export const STRIDE_CHALLENGE_ABI = [
       { name: "groupId", type: "uint256" },
     ],
     outputs: [{ name: "challengeId", type: "uint256" }],
-    stateMutability: "payable",
+    stateMutability: "nonpayable",
   },
   {
     type: "function",
     name: "joinChallenge",
     inputs: [{ name: "challengeId", type: "uint256" }],
     outputs: [],
-    stateMutability: "payable",
+    stateMutability: "nonpayable",
   },
   {
     type: "function",
@@ -242,38 +411,5 @@ export const STRIDE_CHALLENGE_ABI = [
     outputs: [],
     stateMutability: "nonpayable",
   },
-  {
-    type: "function",
-    name: "hasVotedEarlySettle",
-    inputs: [
-      { name: "challengeId", type: "uint256" },
-      { name: "user", type: "address" },
-    ],
-    outputs: [{ name: "", type: "bool" }],
-    stateMutability: "view",
-  },
-  {
-    type: "function",
-    name: "getEarlySettleVoteStatus",
-    inputs: [{ name: "challengeId", type: "uint256" }],
-    outputs: [
-      { name: "votes", type: "uint256" },
-      { name: "required", type: "uint256" },
-    ],
-    stateMutability: "view",
-  },
-  {
-    type: "function",
-    name: "charityAddress",
-    inputs: [],
-    outputs: [{ name: "", type: "address" }],
-    stateMutability: "view",
-  },
-  {
-    type: "function",
-    name: "totalDonatedToCharity",
-    inputs: [],
-    outputs: [{ name: "", type: "uint256" }],
-    stateMutability: "view",
-  },
 ] as const;
+

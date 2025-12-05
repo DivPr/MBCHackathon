@@ -1,89 +1,69 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-// Interface for StrideGroups to update leaderboard stats
-interface IStrideGroups {
-    function recordChallengeCompletion(
-        uint256 _groupId,
-        address _member,
-        uint256 _amountWon,
-        bool _didComplete
-    ) external;
-}
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 /**
- * @title StrideChallengeManager
- * @notice A social fitness challenge contract where participants stake ETH,
+ * @title StrideUSDCChallengeManager
+ * @notice A social fitness challenge contract where participants stake USDC,
  *         complete challenges, and winners split the prize pool.
- * @dev Built for Base Sepolia testnet for MBC Hackathon
+ * @dev Built for Base Sepolia testnet - Powered by Circle USDC
+ * @custom:bounty Circle USDC and Payments Bounty - MBC Hackathon 2025
  */
-contract StrideChallengeManager {
+contract StrideUSDCChallengeManager is ReentrancyGuard {
+    using SafeERC20 for IERC20;
+
+    // ============ Constants ============
+    
+    /// @notice USDC token contract (6 decimals)
+    IERC20 public immutable usdc;
+    
+    /// @notice Platform fee in basis points (0 = no fee, 100 = 1%)
+    uint256 public constant PLATFORM_FEE_BPS = 0;
+    
     // ============ Structs ============
     
     struct Challenge {
         uint256 id;
         address creator;
-        uint256 stakeAmount;
+        uint256 stakeAmount;      // In USDC (6 decimals)
         uint256 endTime;
         string description;
         bool settled;
         bool cancelled;
-        uint256 totalPool;
-        uint256 groupId;        // 0 = no group, otherwise group ID + 1
+        uint256 totalPool;        // Total USDC staked
+        uint256 groupId;          // 0 = no group, otherwise group ID + 1
     }
 
     struct UserStats {
         uint256 challengesCreated;
         uint256 challengesJoined;
         uint256 challengesCompleted;
-        uint256 challengesWon;      // Challenges where user got payout
-        uint256 totalStaked;
-        uint256 totalWon;
-        uint256 totalLost;
+        uint256 challengesWon;
+        uint256 totalStaked;      // In USDC
+        uint256 totalWon;         // In USDC
+        uint256 totalLost;        // In USDC
     }
 
     // ============ State Variables ============
     
     uint256 public challengeCount;
     
-    // Challenge ID => Challenge data
     mapping(uint256 => Challenge) private challenges;
-    
-    // Challenge ID => list of participants
     mapping(uint256 => address[]) private participants;
-    
-    // Challenge ID => participant address => has joined
     mapping(uint256 => mapping(address => bool)) private hasJoinedMapping;
-    
-    // Challenge ID => participant address => has completed
     mapping(uint256 => mapping(address => bool)) private hasCompletedMapping;
-    
-    // Challenge ID => list of completers
     mapping(uint256 => address[]) private completers;
-
-    // Challenge ID => address => voted to cancel
     mapping(uint256 => mapping(address => bool)) private cancelVotes;
-    
-    // Challenge ID => number of cancel votes
     mapping(uint256 => uint256) private cancelVoteCount;
-
-    // Challenge ID => address => voted for early settle
     mapping(uint256 => mapping(address => bool)) private earlySettleVotes;
-    
-    // Challenge ID => number of early settle votes
     mapping(uint256 => uint256) private earlySettleVoteCount;
-
-    // User stats tracking
     mapping(address => UserStats) public userStats;
 
-    // Charity address for when no one wins
     address public charityAddress;
-    
-    // Total donated to charity
     uint256 public totalDonatedToCharity;
-
-    // StrideGroups contract for updating leaderboard stats
-    IStrideGroups public strideGroups;
 
     // ============ Events ============
     
@@ -98,7 +78,8 @@ contract StrideChallengeManager {
     
     event ParticipantJoined(
         uint256 indexed challengeId,
-        address indexed participant
+        address indexed participant,
+        uint256 stakeAmount
     );
     
     event CompletionMarked(
@@ -141,11 +122,6 @@ contract StrideChallengeManager {
         address indexed newAddress
     );
 
-    event StrideGroupsUpdated(
-        address indexed oldAddress,
-        address indexed newAddress
-    );
-
     // ============ Errors ============
     
     error InvalidStakeAmount();
@@ -158,29 +134,36 @@ contract StrideChallengeManager {
     error AlreadyCompleted();
     error AlreadySettled();
     error AlreadyCancelled();
-    error IncorrectStakeAmount();
     error TransferFailed();
     error NotCreator();
     error AlreadyVotedCancel();
     error AlreadyVotedEarlySettle();
     error ChallengeHasParticipants();
     error NoCharityAddress();
+    error InsufficientAllowance();
+    error InsufficientBalance();
 
     // ============ Constructor ============
     
-    constructor() {
-        // Default charity address (can be updated by deployer pattern or governance)
-        // Using a well-known charity address - update this to your preferred charity
-        charityAddress = 0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619; // Example address
+    /**
+     * @notice Initialize with USDC token address
+     * @param _usdc The USDC token contract address
+     */
+    constructor(address _usdc) {
+        require(_usdc != address(0), "Invalid USDC address");
+        usdc = IERC20(_usdc);
+        // Default charity - GiveDirectly (update for production)
+        charityAddress = 0x750EF1D7a0b4Ab1c97B7A623D7917CcEb5ea779C;
     }
 
     // ============ External Functions ============
     
     /**
-     * @notice Create a new challenge and stake as the first participant
-     * @param stakeAmount The amount each participant must stake (in wei)
+     * @notice Create a new challenge and stake USDC as the first participant
+     * @dev Requires prior USDC approval
+     * @param stakeAmount The amount each participant must stake (in USDC, 6 decimals)
      * @param duration How long the challenge lasts (in seconds)
-     * @param description A description of the challenge (e.g., "5K run")
+     * @param description A description of the challenge
      * @param groupId Optional group ID (0 for no group)
      * @return challengeId The ID of the newly created challenge
      */
@@ -189,10 +172,17 @@ contract StrideChallengeManager {
         uint256 duration,
         string calldata description,
         uint256 groupId
-    ) external payable returns (uint256 challengeId) {
+    ) external nonReentrant returns (uint256 challengeId) {
         if (stakeAmount == 0) revert InvalidStakeAmount();
         if (duration == 0) revert InvalidDuration();
-        if (msg.value != stakeAmount) revert IncorrectStakeAmount();
+        
+        // Check allowance and balance
+        if (usdc.allowance(msg.sender, address(this)) < stakeAmount) {
+            revert InsufficientAllowance();
+        }
+        if (usdc.balanceOf(msg.sender) < stakeAmount) {
+            revert InsufficientBalance();
+        }
 
         challengeId = challengeCount++;
         uint256 endTime = block.timestamp + duration;
@@ -211,6 +201,9 @@ contract StrideChallengeManager {
 
         participants[challengeId].push(msg.sender);
         hasJoinedMapping[challengeId][msg.sender] = true;
+
+        // Transfer USDC from user
+        usdc.safeTransferFrom(msg.sender, address(this), stakeAmount);
 
         // Update user stats
         userStats[msg.sender].challengesCreated++;
@@ -234,10 +227,16 @@ contract StrideChallengeManager {
         uint256 stakeAmount,
         uint256 duration,
         string calldata description
-    ) external payable returns (uint256) {
+    ) external nonReentrant returns (uint256) {
         if (stakeAmount == 0) revert InvalidStakeAmount();
         if (duration == 0) revert InvalidDuration();
-        if (msg.value != stakeAmount) revert IncorrectStakeAmount();
+        
+        if (usdc.allowance(msg.sender, address(this)) < stakeAmount) {
+            revert InsufficientAllowance();
+        }
+        if (usdc.balanceOf(msg.sender) < stakeAmount) {
+            revert InsufficientBalance();
+        }
 
         uint256 challengeId = challengeCount++;
         uint256 endTime = block.timestamp + duration;
@@ -257,7 +256,8 @@ contract StrideChallengeManager {
         participants[challengeId].push(msg.sender);
         hasJoinedMapping[challengeId][msg.sender] = true;
 
-        // Update user stats
+        usdc.safeTransferFrom(msg.sender, address(this), stakeAmount);
+
         userStats[msg.sender].challengesCreated++;
         userStats[msg.sender].challengesJoined++;
         userStats[msg.sender].totalStaked += stakeAmount;
@@ -275,27 +275,37 @@ contract StrideChallengeManager {
     }
 
     /**
-     * @notice Join an existing challenge by staking the required amount
+     * @notice Join an existing challenge by staking USDC
+     * @dev Requires prior USDC approval
      * @param challengeId The ID of the challenge to join
      */
-    function joinChallenge(uint256 challengeId) external payable {
+    function joinChallenge(uint256 challengeId) external nonReentrant {
         Challenge storage challenge = challenges[challengeId];
         
         if (challenge.endTime == 0) revert ChallengeNotFound();
         if (challenge.cancelled) revert AlreadyCancelled();
         if (block.timestamp >= challenge.endTime) revert ChallengeEnded();
         if (hasJoinedMapping[challengeId][msg.sender]) revert AlreadyJoined();
-        if (msg.value != challenge.stakeAmount) revert IncorrectStakeAmount();
+        
+        uint256 stakeAmount = challenge.stakeAmount;
+        
+        if (usdc.allowance(msg.sender, address(this)) < stakeAmount) {
+            revert InsufficientAllowance();
+        }
+        if (usdc.balanceOf(msg.sender) < stakeAmount) {
+            revert InsufficientBalance();
+        }
 
         participants[challengeId].push(msg.sender);
         hasJoinedMapping[challengeId][msg.sender] = true;
-        challenge.totalPool += msg.value;
+        challenge.totalPool += stakeAmount;
 
-        // Update user stats
+        usdc.safeTransferFrom(msg.sender, address(this), stakeAmount);
+
         userStats[msg.sender].challengesJoined++;
-        userStats[msg.sender].totalStaked += msg.value;
+        userStats[msg.sender].totalStaked += stakeAmount;
 
-        emit ParticipantJoined(challengeId, msg.sender);
+        emit ParticipantJoined(challengeId, msg.sender, stakeAmount);
     }
 
     /**
@@ -314,7 +324,6 @@ contract StrideChallengeManager {
         hasCompletedMapping[challengeId][msg.sender] = true;
         completers[challengeId].push(msg.sender);
 
-        // Update user stats
         userStats[msg.sender].challengesCompleted++;
 
         emit CompletionMarked(challengeId, msg.sender);
@@ -337,24 +346,21 @@ contract StrideChallengeManager {
         cancelVoteCount[challengeId]++;
 
         uint256 totalParticipants = participants[challengeId].length;
-        uint256 votesNeeded = totalParticipants; // All must agree
 
         emit CancelVoteCast(
             challengeId, 
             msg.sender, 
             cancelVoteCount[challengeId], 
-            votesNeeded
+            totalParticipants
         );
 
-        // If all participants voted, cancel the challenge
         if (cancelVoteCount[challengeId] >= totalParticipants) {
             _cancelChallenge(challengeId, "All participants agreed to cancel");
         }
     }
 
     /**
-     * @notice Vote to end a challenge early (requires all participants to agree)
-     * @dev If all vote and there are completers, winners get paid. If no completers, goes to charity.
+     * @notice Vote to end a challenge early
      * @param challengeId The ID of the challenge
      */
     function voteEarlySettle(uint256 challengeId) external {
@@ -370,16 +376,14 @@ contract StrideChallengeManager {
         earlySettleVoteCount[challengeId]++;
 
         uint256 totalParticipants = participants[challengeId].length;
-        uint256 votesNeeded = totalParticipants; // All must agree
 
         emit EarlySettleVoteCast(
             challengeId, 
             msg.sender, 
             earlySettleVoteCount[challengeId], 
-            votesNeeded
+            totalParticipants
         );
 
-        // If all participants voted, settle the challenge early
         if (earlySettleVoteCount[challengeId] >= totalParticipants) {
             _settleChallenge(challengeId);
         }
@@ -403,54 +407,48 @@ contract StrideChallengeManager {
      * @notice Creator can cancel if they're the only participant
      * @param challengeId The ID of the challenge
      */
-    function creatorCancelChallenge(uint256 challengeId) external {
+    function creatorCancelChallenge(uint256 challengeId) external nonReentrant {
         Challenge storage challenge = challenges[challengeId];
         
         if (challenge.endTime == 0) revert ChallengeNotFound();
         if (challenge.creator != msg.sender) revert NotCreator();
         if (challenge.settled) revert AlreadySettled();
         if (challenge.cancelled) revert AlreadyCancelled();
-        
-        // Creator can only cancel if they're the only participant
         if (participants[challengeId].length > 1) revert ChallengeHasParticipants();
 
         _cancelChallenge(challengeId, "Cancelled by creator");
     }
 
     /**
-     * @notice Internal function to cancel and refund
+     * @notice Internal function to cancel and refund USDC
      */
     function _cancelChallenge(uint256 challengeId, string memory reason) internal {
         Challenge storage challenge = challenges[challengeId];
         challenge.cancelled = true;
 
-        // Refund all participants
         address[] memory allParticipants = participants[challengeId];
         uint256 refundAmount = challenge.stakeAmount;
 
         for (uint256 i = 0; i < allParticipants.length; i++) {
             address participant = allParticipants[i];
             
-            // Update stats - remove the stake from total
             userStats[participant].totalStaked -= refundAmount;
             userStats[participant].challengesJoined--;
             if (participant == challenge.creator) {
                 userStats[participant].challengesCreated--;
             }
 
-            (bool success, ) = participant.call{value: refundAmount}("");
-            if (!success) revert TransferFailed();
+            usdc.safeTransfer(participant, refundAmount);
         }
 
         emit ChallengeCancelled(challengeId, reason);
     }
 
     /**
-     * @notice Settle the challenge and distribute the prize pool
-     * @dev Can only be called after the challenge has ended
+     * @notice Settle the challenge and distribute USDC prize pool
      * @param challengeId The ID of the challenge to settle
      */
-    function settleChallenge(uint256 challengeId) external {
+    function settleChallenge(uint256 challengeId) external nonReentrant {
         Challenge storage challenge = challenges[challengeId];
         
         if (challenge.endTime == 0) revert ChallengeNotFound();
@@ -462,7 +460,7 @@ contract StrideChallengeManager {
     }
 
     /**
-     * @notice Internal function to settle and distribute prizes
+     * @notice Internal function to settle and distribute USDC prizes
      */
     function _settleChallenge(uint256 challengeId) internal {
         Challenge storage challenge = challenges[challengeId];
@@ -473,91 +471,48 @@ contract StrideChallengeManager {
         uint256 winnersCount = winners.length;
         uint256 totalPool = challenge.totalPool;
         uint256 prizePerWinner;
-        
-        // Check if this challenge is part of a group
-        bool hasGroup = challenge.groupId > 0 && address(strideGroups) != address(0);
 
         if (winnersCount > 0) {
-            // Split pool among completers
             prizePerWinner = totalPool / winnersCount;
             
             for (uint256 i = 0; i < winnersCount; i++) {
                 address winner = winners[i];
                 
-                // Update winner stats
                 userStats[winner].challengesWon++;
                 userStats[winner].totalWon += prizePerWinner;
 
-                // Update group leaderboard stats if part of a group
-                if (hasGroup) {
-                    try strideGroups.recordChallengeCompletion(
-                        challenge.groupId - 1, // groupId is stored as groupId + 1
-                        winner,
-                        prizePerWinner,
-                        true // didComplete = true for winners
-                    ) {} catch {}
-                }
-
-                (bool success, ) = winner.call{value: prizePerWinner}("");
-                if (!success) revert TransferFailed();
+                usdc.safeTransfer(winner, prizePerWinner);
             }
 
-            // Update loser stats (participants who didn't complete)
             for (uint256 i = 0; i < allParticipants.length; i++) {
-                address participant = allParticipants[i];
-                if (!hasCompletedMapping[challengeId][participant]) {
-                    userStats[participant].totalLost += challenge.stakeAmount;
-                    
-                    // Update group leaderboard stats for losers
-                    if (hasGroup) {
-                        try strideGroups.recordChallengeCompletion(
-                            challenge.groupId - 1,
-                            participant,
-                            0,
-                            false // didComplete = false for losers
-                        ) {} catch {}
-                    }
+                if (!hasCompletedMapping[challengeId][allParticipants[i]]) {
+                    userStats[allParticipants[i]].totalLost += challenge.stakeAmount;
                 }
             }
             
-            // Handle dust (any remainder due to division)
+            // Handle dust
             uint256 dust = totalPool - (prizePerWinner * winnersCount);
             if (dust > 0) {
-                (bool success, ) = challenge.creator.call{value: dust}("");
-                if (!success) revert TransferFailed();
+                usdc.safeTransfer(challenge.creator, dust);
             }
         } else {
             // No completers - donate to charity
             if (charityAddress != address(0)) {
                 totalDonatedToCharity += totalPool;
                 
-                (bool success, ) = charityAddress.call{value: totalPool}("");
-                if (!success) revert TransferFailed();
+                usdc.safeTransfer(charityAddress, totalPool);
                 
                 emit DonatedToCharity(challengeId, totalPool);
                 
-                // Update loser stats for all participants
                 for (uint256 i = 0; i < allParticipants.length; i++) {
-                    address participant = allParticipants[i];
-                    userStats[participant].totalLost += challenge.stakeAmount;
-                    
-                    // Update group leaderboard stats for losers
-                    if (hasGroup) {
-                        try strideGroups.recordChallengeCompletion(
-                            challenge.groupId - 1,
-                            participant,
-                            0,
-                            false // didComplete = false
-                        ) {} catch {}
-                    }
+                    userStats[allParticipants[i]].totalLost += challenge.stakeAmount;
                 }
             } else {
-                // Fallback: refund everyone if no charity address set
+                // Fallback: refund everyone
                 uint256 refundAmount = challenge.stakeAmount;
                 
                 for (uint256 i = 0; i < allParticipants.length; i++) {
-                    (bool success, ) = allParticipants[i].call{value: refundAmount}("");
-                    if (!success) revert TransferFailed();
+                    usdc.safeTransfer(allParticipants[i], refundAmount);
                 }
             }
         }
@@ -566,11 +521,10 @@ contract StrideChallengeManager {
     }
 
     /**
-     * @notice Update charity address (only callable by current charity or deployer initially)
+     * @notice Update charity address
      */
     function setCharityAddress(address newCharityAddress) external {
-        // Simple access control - in production, use proper governance
-        require(msg.sender == charityAddress || charityAddress == address(0) || msg.sender == address(this), "Not authorized");
+        require(msg.sender == charityAddress || charityAddress == address(0), "Not authorized");
         
         address oldAddress = charityAddress;
         charityAddress = newCharityAddress;
@@ -578,75 +532,45 @@ contract StrideChallengeManager {
         emit CharityAddressUpdated(oldAddress, newCharityAddress);
     }
 
-    /**
-     * @notice Set the StrideGroups contract address for leaderboard updates
-     * @param _strideGroups Address of the StrideGroups contract
-     */
-    function setStrideGroups(address _strideGroups) external {
-        // Simple access control - anyone can set it initially, then only the contract itself
-        require(address(strideGroups) == address(0) || msg.sender == address(this), "Not authorized");
-        
-        address oldAddress = address(strideGroups);
-        strideGroups = IStrideGroups(_strideGroups);
-        
-        emit StrideGroupsUpdated(oldAddress, _strideGroups);
-    }
-
     // ============ View Functions ============
     
-    /**
-     * @notice Get challenge details
-     */
     function getChallenge(uint256 challengeId) external view returns (Challenge memory) {
         return challenges[challengeId];
     }
 
-    /**
-     * @notice Get all participants of a challenge
-     */
     function getParticipants(uint256 challengeId) external view returns (address[] memory) {
         return participants[challengeId];
     }
 
-    /**
-     * @notice Check if an address has joined a challenge
-     */
     function hasJoined(uint256 challengeId, address participant) external view returns (bool) {
         return hasJoinedMapping[challengeId][participant];
     }
 
-    /**
-     * @notice Check if an address has completed a challenge
-     */
     function hasCompleted(uint256 challengeId, address participant) external view returns (bool) {
         return hasCompletedMapping[challengeId][participant];
     }
 
-    /**
-     * @notice Get all completers of a challenge
-     */
     function getCompleters(uint256 challengeId) external view returns (address[] memory) {
         return completers[challengeId];
     }
 
-    /**
-     * @notice Check if user has voted to cancel
-     */
     function hasVotedCancel(uint256 challengeId, address user) external view returns (bool) {
         return cancelVotes[challengeId][user];
     }
 
-    /**
-     * @notice Get cancel vote status
-     */
     function getCancelVoteStatus(uint256 challengeId) external view returns (uint256 votes, uint256 required) {
         return (cancelVoteCount[challengeId], participants[challengeId].length);
     }
 
-    /**
-     * @notice Get user statistics
-     */
     function getUserStats(address user) external view returns (UserStats memory) {
         return userStats[user];
     }
+
+    /**
+     * @notice Get USDC token address
+     */
+    function getUSDCAddress() external view returns (address) {
+        return address(usdc);
+    }
 }
+

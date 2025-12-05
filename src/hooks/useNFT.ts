@@ -150,3 +150,57 @@ export function useTokenURI(tokenId: number | undefined) {
   };
 }
 
+/**
+ * Hook to get all NFT token IDs owned by a user
+ * Note: This is a simple approach that iterates through all tokens.
+ * For production with many NFTs, you'd want to use events or a subgraph.
+ */
+export function useUserNFTs(userAddress: `0x${string}` | undefined) {
+  const { data: totalSupply } = useReadContract({
+    address: SIMPLE_BADGE_NFT_ADDRESS,
+    abi: SIMPLE_BADGE_NFT_ABI,
+    functionName: "totalSupply",
+    query: {
+      enabled: isNFTContractDeployed,
+      refetchInterval: 5000,
+    },
+  });
+
+  const { data: balance } = useReadContract({
+    address: SIMPLE_BADGE_NFT_ADDRESS,
+    abi: SIMPLE_BADGE_NFT_ABI,
+    functionName: "balanceOf",
+    args: userAddress ? [userAddress] : undefined,
+    query: {
+      enabled: !!userAddress && isNFTContractDeployed,
+      refetchInterval: 5000,
+    },
+  });
+
+  return {
+    totalSupply: totalSupply ? Number(totalSupply) : 0,
+    balance: balance ? Number(balance) : 0,
+    isContractDeployed: isNFTContractDeployed,
+  };
+}
+
+/**
+ * Hook to check if a specific token is owned by a user
+ */
+export function useTokenOwner(tokenId: number | undefined) {
+  const { data: owner, isLoading } = useReadContract({
+    address: SIMPLE_BADGE_NFT_ADDRESS,
+    abi: SIMPLE_BADGE_NFT_ABI,
+    functionName: "ownerOf",
+    args: tokenId !== undefined ? [BigInt(tokenId)] : undefined,
+    query: {
+      enabled: tokenId !== undefined && isNFTContractDeployed,
+    },
+  });
+
+  return {
+    owner: owner as `0x${string}` | undefined,
+    isLoading,
+  };
+}
+

@@ -22,6 +22,9 @@ export function useGroup(groupId: bigint) {
     abi: STRIDE_GROUPS_ABI,
     functionName: "getGroup",
     args: [groupId],
+    query: {
+      refetchInterval: 3000, // Refetch every 3 seconds
+    },
   });
 }
 
@@ -57,6 +60,7 @@ export function useUserGroups(userAddress?: `0x${string}`) {
     args: userAddress ? [userAddress] : undefined,
     query: {
       enabled: !!userAddress,
+      refetchInterval: 3000, // Refetch every 3 seconds to catch new groups
     },
   });
 }
