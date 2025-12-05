@@ -61,7 +61,7 @@ A social fitness challenge app where friends commit to running goals, stake ETH 
 
 ---
 
-## 🏆 Circle USDC Integration (Bounty Submission)
+##  Circle USDC Integration
 
 **This project integrates Circle's USDC stablecoin** for fitness challenge staking, demonstrating a real-world payment use case on Base.
 
