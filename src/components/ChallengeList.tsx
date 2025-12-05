@@ -1,18 +1,20 @@
 "use client";
 
 import { useChallengeCount } from "@/hooks/useChallenge";
+import { useUSDCChallengeCount } from "@/hooks/useUSDC";
 import { ChallengeCard } from "./ChallengeCard";
 import { useState, useEffect } from "react";
 
 export function ChallengeList() {
   const { data: count, isLoading, error } = useChallengeCount();
+  const { data: usdcCount, isLoading: isUSDCLoading, error: usdcError } = useUSDCChallengeCount();
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  if (!mounted || isLoading) {
+  if (!mounted || isLoading || isUSDCLoading) {
     return (
       <div className="space-y-4">
         <div className="flex items-center justify-between">
@@ -36,9 +38,10 @@ export function ChallengeList() {
     );
   }
 
-  if (error) {
+  if (error || usdcError) {
     // Check if it's a network error or just no challenges
-    const isNetworkError = error.message.includes("chain") || error.message.includes("network");
+    const message = error?.message || usdcError?.message || "";
+    const isNetworkError = message.includes("chain") || message.includes("network");
     
     return (
       <div className="card border-orange-500/30 bg-orange-500/5">
@@ -64,14 +67,21 @@ export function ChallengeList() {
     );
   }
 
-  const challengeCount = Number(count || 0);
+  const ethCount = Number(count || 0);
+  const usdcCountNum = Number(usdcCount || 0);
+  const ethIds = Array.from({ length: ethCount }, (_, i) => BigInt(ethCount - i - 1));
+  const usdcIds = Array.from({ length: usdcCountNum }, (_, i) => BigInt(usdcCountNum - i - 1));
+  const nothingToShow = ethCount === 0 && usdcCountNum === 0;
 
-  if (challengeCount === 0) {
-    return (
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-xl font-bold">Active Challenges</h2>
-        </div>
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-bold">Active Challenges</h2>
+        <span className="px-3 py-1.5 bg-stride-purple/10 border border-stride-purple/30 rounded-full text-sm text-stride-purple font-medium">
+          {ethCount + usdcCountNum} total
+        </span>
+      </div>
+      {nothingToShow ? (
         <div className="card text-center py-12 border-dashed border-2 border-white/10 bg-transparent">
           <div className="w-16 h-16 bg-gradient-to-br from-stride-purple/20 to-pink-500/20 rounded-2xl flex items-center justify-center mx-auto mb-4 animate-float">
             <svg className="w-8 h-8 text-stride-purple" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -80,34 +90,46 @@ export function ChallengeList() {
           </div>
           <h3 className="text-lg font-medium mb-2">No Challenges Yet</h3>
           <p className="text-stride-muted max-w-sm mx-auto">
-            Be the first to create a challenge! Set a goal, stake some ETH, and invite your friends.
+            Be the first to create a challenge! Set a goal, stake some ETH or USDC, and invite your friends.
           </p>
         </div>
-      </div>
-    );
-  }
+      ) : (
+        <>
+          {ethCount > 0 && (
+            <div className="space-y-2">
+              <div className="text-sm text-stride-muted">ETH Challenges</div>
+              <div className="grid gap-4">
+                {ethIds.map((id, index) => (
+                  <div 
+                    key={`eth-${id.toString()}`} 
+                    className="animate-slide-up"
+                    style={{ animationDelay: `${index * 50}ms` }}
+                  >
+                    <ChallengeCard challengeId={id} challengeType="ETH" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
-  const challengeIds = Array.from({ length: challengeCount }, (_, i) => BigInt(challengeCount - i - 1));
-
-  return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-xl font-bold">Active Challenges</h2>
-        <span className="px-3 py-1.5 bg-stride-purple/10 border border-stride-purple/30 rounded-full text-sm text-stride-purple font-medium">
-          {challengeCount} total
-        </span>
-      </div>
-      <div className="grid gap-4">
-        {challengeIds.map((id, index) => (
-          <div 
-            key={id.toString()} 
-            className="animate-slide-up"
-            style={{ animationDelay: `${index * 50}ms` }}
-          >
-            <ChallengeCard challengeId={id} />
-          </div>
-        ))}
-      </div>
+          {usdcCountNum > 0 && (
+            <div className="space-y-2">
+              <div className="text-sm text-stride-muted">USDC Challenges</div>
+              <div className="grid gap-4">
+                {usdcIds.map((id, index) => (
+                  <div 
+                    key={`usdc-${id.toString()}`} 
+                    className="animate-slide-up"
+                    style={{ animationDelay: `${index * 50}ms` }}
+                  >
+                    <ChallengeCard challengeId={id} challengeType="USDC" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }

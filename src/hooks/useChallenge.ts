@@ -72,6 +72,48 @@ export function useCompleters(challengeId: bigint) {
   });
 }
 
+export function useVerifiedCompleters(challengeId: bigint) {
+  return useReadContract({
+    address: STRIDE_CHALLENGE_ADDRESS,
+    abi: STRIDE_CHALLENGE_ABI,
+    functionName: "getVerifiedCompleters",
+    args: [challengeId],
+  });
+}
+
+export function useCompletionInfo(challengeId: bigint, runner?: `0x${string}`) {
+  return useReadContract({
+    address: STRIDE_CHALLENGE_ADDRESS,
+    abi: STRIDE_CHALLENGE_ABI,
+    functionName: "getCompletionInfo",
+    args: runner ? [challengeId, runner] : undefined,
+    query: {
+      enabled: !!runner,
+    },
+  });
+}
+
+export function useHasApprovedCompletion(challengeId: bigint, runner?: `0x${string}`, voter?: `0x${string}`) {
+  return useReadContract({
+    address: STRIDE_CHALLENGE_ADDRESS,
+    abi: STRIDE_CHALLENGE_ABI,
+    functionName: "hasApproved",
+    args: runner && voter ? [challengeId, runner, voter] : undefined,
+    query: {
+      enabled: !!runner && !!voter,
+    },
+  });
+}
+
+export function useApprovalThreshold(challengeId: bigint) {
+  return useReadContract({
+    address: STRIDE_CHALLENGE_ADDRESS,
+    abi: STRIDE_CHALLENGE_ABI,
+    functionName: "getApprovalThreshold",
+    args: [challengeId],
+  });
+}
+
 export function useHasVotedCancel(challengeId: bigint, address?: `0x${string}`) {
   return useReadContract({
     address: STRIDE_CHALLENGE_ADDRESS,
@@ -226,6 +268,52 @@ export function useMarkCompleted() {
 
   return {
     markCompleted,
+    isPending,
+    isConfirming,
+    isSuccess,
+    error,
+    hash,
+  };
+}
+
+export function useMarkCompletedWithProof() {
+  const { writeContract, data: hash, isPending, error } = useWriteContract();
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash });
+
+  const markCompletedWithProof = async (challengeId: bigint, proofCid: string) => {
+    writeContract({
+      address: STRIDE_CHALLENGE_ADDRESS,
+      abi: STRIDE_CHALLENGE_ABI,
+      functionName: "markCompletedWithProof",
+      args: [challengeId, proofCid],
+    });
+  };
+
+  return {
+    markCompletedWithProof,
+    isPending,
+    isConfirming,
+    isSuccess,
+    error,
+    hash,
+  };
+}
+
+export function useApproveCompletion() {
+  const { writeContract, data: hash, isPending, error } = useWriteContract();
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash });
+
+  const approveCompletion = async (challengeId: bigint, runner: `0x${string}`, isValid: boolean) => {
+    writeContract({
+      address: STRIDE_CHALLENGE_ADDRESS,
+      abi: STRIDE_CHALLENGE_ABI,
+      functionName: "approveCompletion",
+      args: [challengeId, runner, isValid],
+    });
+  };
+
+  return {
+    approveCompletion,
     isPending,
     isConfirming,
     isSuccess,

@@ -6,6 +6,7 @@ interface ProofPicProps {
   challengeId: bigint;
   onCapture?: (imageUrl: string) => void;
   onClose: () => void;
+  posePrompt?: string;
 }
 
 // Storage key for proof pics
@@ -23,7 +24,7 @@ export function saveProofPic(challengeId: bigint, imageUrl: string) {
   localStorage.setItem(getStorageKey(challengeId), imageUrl);
 }
 
-export function ProofPicCamera({ challengeId, onCapture, onClose }: ProofPicProps) {
+export function ProofPicCamera({ challengeId, onCapture, onClose, posePrompt }: ProofPicProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [stream, setStream] = useState<MediaStream | null>(null);
@@ -277,9 +278,10 @@ export function ProofPicCamera({ challengeId, onCapture, onClose }: ProofPicProp
 
         {/* Instructions */}
         {!capturedImage && !error && (
-          <p className="mt-4 text-center text-sm text-stride-muted">
-            Take a selfie during your run! 🏃‍♂️
-          </p>
+          <div className="mt-4 text-center text-sm text-stride-muted space-y-1">
+            <p>Take a selfie during your run! 🏃‍♂️</p>
+            {posePrompt && <p className="text-white">Pose: {posePrompt}</p>}
+          </div>
         )}
       </div>
     </div>

@@ -1,14 +1,17 @@
 "use client";
 
-import { useAccount } from "wagmi";
+import { useAccount, useReadContracts } from "wagmi";
 import {
   useUSDCChallenge,
   useUSDCParticipants,
   useUSDCHasJoined,
   useUSDCHasCompleted,
   useUSDCCompleters,
+  useUSDCVerifiedCompleters,
+  useUSDCApprovalThreshold,
   useJoinUSDCChallenge,
   useMarkUSDCCompleted,
+  useMarkUSDCCompletedWithProof,
   useSettleUSDCChallenge,
   useVoteCancelUSDCChallenge,
   useCreatorCancelUSDCChallenge,
@@ -17,19 +20,37 @@ import {
   useUSDCBalance,
   useUSDCAllowance,
   useApproveUSDC,
+  useApproveUSDCCompletion,
 } from "@/hooks/useUSDC";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { ShareModal } from "./ShareModal";
 import { ProofPicCamera, ProofPicDisplay, getProofPic } from "./ProofPic";
-import { VictoryCelebration, ReactionBar, fireConfetti } from "./HypeReactions";
+import { VictoryCelebration, fireConfetti } from "./HypeReactions";
 import { ShareCard } from "./ShareCard";
 import { RematchCard } from "./RematchButton";
 import { useStreaks, StreakBadge } from "@/hooks/useStreaks";
 import { CircleLogo } from "./USDCStakeButton";
+import { STRIDE_USDC_CHALLENGE_ABI, STRIDE_USDC_CHALLENGE_ADDRESS, USDC_DECIMALS } from "@/config/usdcContract";
 
 interface USDCChallengeDetailProps {
   challengeId: bigint;
 }
+
+interface ProofEntry {
+  challengeId: string;
+  participant: string;
+  imageData: string;
+  posePrompt?: string;
+  proofCid: string;
+  createdAt: number;
+}
+
+type CompletionInfoResult = {
+  claimed: boolean;
+  approvals: bigint;
+  verified: boolean;
+  proofCid: string;
+};
 
 export function USDCChallengeDetail({ challengeId }: USDCChallengeDetailProps) {
   const { address } = useAccount();
@@ -38,6 +59,8 @@ export function USDCChallengeDetail({ challengeId }: USDCChallengeDetailProps) {
   const { data: hasJoined, refetch: refetchJoined } = useUSDCHasJoined(challengeId, address);
   const { data: hasCompleted, refetch: refetchCompleted } = useUSDCHasCompleted(challengeId, address);
   const { data: completers, refetch: refetchCompleters } = useUSDCCompleters(challengeId);
+  const { data: verifiedCompleters, refetch: refetchVerifiedCompleters } = useUSDCVerifiedCompleters(challengeId);
+  const { data: approvalThreshold } = useUSDCApprovalThreshold(challengeId);
   
   // USDC balance and approval
   const { data: usdcBalance, refetch: refetchBalance } = useUSDCBalance(address);
@@ -59,6 +82,13 @@ export function USDCChallengeDetail({ challengeId }: USDCChallengeDetailProps) {
   } = useMarkUSDCCompleted();
 
   const {
+    markCompletedWithProof,
+    isPending: isMarkingWithProof,
+    isConfirming: isMarkWithProofConfirming,
+    isSuccess: markWithProofSuccess,
+  } = useMarkUSDCCompletedWithProof();
+
+  const {
     settleChallenge,
     isPending: isSettling,
     isConfirming: isSettleConfirming,
@@ -77,6 +107,13 @@ export function USDCChallengeDetail({ challengeId }: USDCChallengeDetailProps) {
     isSuccess: earlySettleSuccess,
   } = useVoteEarlySettleUSDC();
 
+  const {
+    approveCompletion,
+    isPending: isApprovingCompletion,
+    isConfirming: isApproveCompletionConfirming,
+    isSuccess: approveCompletionSuccess,
+  } = useApproveUSDCCompletion();
+
   const [showShareModal, setShowShareModal] = useState(false);
   const [timeLeft, setTimeLeft] = useState("");
   const [mounted, setMounted] = useState(false);
@@ -84,6 +121,9 @@ export function USDCChallengeDetail({ challengeId }: USDCChallengeDetailProps) {
   // New feature states
   const [showCamera, setShowCamera] = useState(false);
   const [proofPicUrl, setProofPicUrl] = useState<string | null>(null);
+  const [isUploadingProof, setIsUploadingProof] = useState(false);
+  const [posePrompt, setPosePrompt] = useState<string>("");
+  const [proofs, setProofs] = useState<ProofEntry[]>([]);
   const [showVictory, setShowVictory] = useState(false);
   const [showShareCard, setShowShareCard] = useState(false);
   const [showRematchCard, setShowRematchCard] = useState(false);
@@ -100,6 +140,47 @@ export function USDCChallengeDetail({ challengeId }: USDCChallengeDetailProps) {
       setProofPicUrl(savedPic);
     }
   }, [challengeId]);
+
+  // Assign and persist a simple pose prompt for anti-reuse
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const key = `stride_pose_prompt_usdc_${challengeId.toString()}`;
+    const existing = localStorage.getItem(key);
+    if (existing) {
+      setPosePrompt(existing);
+      return;
+    }
+
+    const prompts = [
+      "Show a thumbs up with your left hand",
+      "Do a peace sign with your right hand",
+      "Point at your shoes",
+      "Flex your bicep",
+      "Hold up three fingers",
+    ];
+    const chosen = prompts[Math.floor(Math.random() * prompts.length)];
+    setPosePrompt(chosen);
+    localStorage.setItem(key, chosen);
+  }, [challengeId]);
+
+  const fetchProofs = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/proofs?challengeId=${challengeId.toString()}`, {
+        cache: "no-store",
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      setProofs(data.proofs || []);
+    } catch (err) {
+      console.error("Failed to load proofs", err);
+    }
+  }, [challengeId]);
+
+  useEffect(() => {
+    fetchProofs();
+    const interval = setInterval(fetchProofs, 8000);
+    return () => clearInterval(interval);
+  }, [fetchProofs]);
 
   // Show victory celebration for winners
   useEffect(() => {
@@ -122,17 +203,19 @@ export function USDCChallengeDetail({ challengeId }: USDCChallengeDetailProps) {
   }, [approveSuccess, refetchAllowance]);
 
   useEffect(() => {
-    if (joinSuccess || markSuccess || settleSuccess || voteCancelSuccess || creatorCancelSuccess || earlySettleSuccess) {
+    if (joinSuccess || markSuccess || markWithProofSuccess || settleSuccess || voteCancelSuccess || creatorCancelSuccess || earlySettleSuccess || approveCompletionSuccess) {
       setTimeout(() => {
         refetch();
         refetchParticipants();
         refetchJoined();
         refetchCompleted();
         refetchCompleters();
+        refetchVerifiedCompleters();
         refetchBalance();
+        fetchProofs();
       }, 2000);
     }
-  }, [joinSuccess, markSuccess, settleSuccess, voteCancelSuccess, creatorCancelSuccess, earlySettleSuccess, refetch, refetchParticipants, refetchJoined, refetchCompleted, refetchCompleters, refetchBalance]);
+  }, [joinSuccess, markSuccess, markWithProofSuccess, settleSuccess, voteCancelSuccess, creatorCancelSuccess, earlySettleSuccess, approveCompletionSuccess, refetch, refetchParticipants, refetchJoined, refetchCompleted, refetchCompleters, refetchVerifiedCompleters, refetchBalance, fetchProofs]);
 
   useEffect(() => {
     if (!challenge) return;
@@ -166,17 +249,109 @@ export function USDCChallengeDetail({ challengeId }: USDCChallengeDetailProps) {
     return () => clearInterval(interval);
   }, [challenge]);
 
+  // Batch-read completion info + approvals for gallery
+  const completionContracts = useMemo(() => {
+    if (!completers || completers.length === 0) return [];
+    return completers.map((runner) => ({
+      address: STRIDE_USDC_CHALLENGE_ADDRESS,
+      abi: STRIDE_USDC_CHALLENGE_ABI,
+      functionName: "getCompletionInfo",
+      args: [challengeId, runner],
+    }));
+  }, [challengeId, completers]);
+
+  const { data: completionInfos } = useReadContracts({
+    contracts: completionContracts,
+    query: {
+      enabled: completionContracts.length > 0,
+    },
+  });
+
+  const approvalContracts = useMemo(() => {
+    if (!address || !completers || completers.length === 0) return [];
+    return completers.map((runner) => ({
+      address: STRIDE_USDC_CHALLENGE_ADDRESS,
+      abi: STRIDE_USDC_CHALLENGE_ABI,
+      functionName: "hasApproved",
+      args: [challengeId, runner, address],
+    }));
+  }, [address, challengeId, completers]);
+
+  const { data: approvalInfos } = useReadContracts({
+    contracts: approvalContracts,
+    query: {
+      enabled: approvalContracts.length > 0,
+    },
+  });
+
+  const completionInfoMap = useMemo(() => {
+    const map: Record<string, { claimed: boolean; approvals: number; verified: boolean; proofCid?: string }> = {};
+    if (completers) {
+      completers.forEach((runner, idx) => {
+        const info = completionInfos?.[idx]?.result as CompletionInfoResult | undefined;
+        if (info) {
+          map[runner.toLowerCase()] = {
+            claimed: info.claimed,
+            approvals: Number(info.approvals ?? 0n),
+            verified: info.verified,
+            proofCid: info.proofCid,
+          };
+        }
+      });
+    }
+    return map;
+  }, [completionInfos, completers]);
+
+  const approvalMap = useMemo(() => {
+    const map: Record<string, boolean> = {};
+    if (completers && approvalInfos) {
+      completers.forEach((runner, idx) => {
+        const hasApproved = approvalInfos[idx]?.result as boolean | undefined;
+        if (hasApproved !== undefined) {
+          map[runner.toLowerCase()] = Boolean(hasApproved);
+        }
+      });
+    }
+    return map;
+  }, [approvalInfos, completers]);
+
   // Define handlers that use hooks before any conditional returns
-  const handleCameraCapture = useCallback((imageUrl: string) => {
+  const handleCameraCapture = useCallback(async (imageUrl: string) => {
     setProofPicUrl(imageUrl);
     setShowCamera(false);
-    // Now mark as completed
-    markCompleted(challengeId);
-    // Record streak
-    recordCompletion();
-    // Fire confetti!
-    fireConfetti();
-  }, [challengeId, markCompleted, recordCompletion]);
+    setIsUploadingProof(true);
+
+    try {
+      if (!address) {
+        markCompleted(challengeId);
+        return;
+      }
+
+      const res = await fetch("/api/proofs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          challengeId: challengeId.toString(),
+          participant: address,
+          imageData: imageUrl,
+          posePrompt,
+        }),
+      });
+
+      const data = await res.json();
+      const proofCid = data.proofCid || `local-${Date.now()}`;
+
+      await markCompletedWithProof(challengeId, proofCid);
+      fetchProofs();
+    } catch (err) {
+      console.error("Proof upload failed, falling back to on-chain claim only", err);
+      markCompleted(challengeId);
+    } finally {
+      recordCompletion();
+      fireConfetti();
+      setIsUploadingProof(false);
+    }
+  }, [address, challengeId, fetchProofs, markCompleted, markCompletedWithProof, posePrompt, recordCompletion]);
 
   if (!mounted || isLoading || !challenge) {
     return (
@@ -198,13 +373,24 @@ export function USDCChallengeDetail({ challengeId }: USDCChallengeDetailProps) {
   const isEnded = endTime < now;
   const stakeUSDC = formatUSDCBalance(challenge.stakeAmount);
   const poolUSDC = formatUSDCBalance(challenge.totalPool);
+  const poolUSDCNumber = Number(challenge.totalPool) / Math.pow(10, USDC_DECIMALS);
   const participantCount = participants?.length || 0;
   const completerCount = completers?.length || 0;
+  const verifiedCount = verifiedCompleters?.length || 0;
+  const approvalThresholdNum = approvalThreshold ? Number(approvalThreshold) : 0;
   const isCancelled = challenge.cancelled;
 
   // Check if user has enough allowance
   const hasEnoughAllowance = usdcAllowance !== undefined && usdcAllowance >= challenge.stakeAmount;
   const hasEnoughBalance = usdcBalance !== undefined && usdcBalance >= challenge.stakeAmount;
+
+  const potentialWinnings = (verifiedCount > 0 ? verifiedCount : completerCount) > 0
+    ? poolUSDCNumber / ((verifiedCount > 0 ? verifiedCount : completerCount) + (hasJoined && !hasCompleted ? 1 : 0))
+    : poolUSDCNumber;
+
+  const selfInfo = address ? completionInfoMap[address.toLowerCase()] : undefined;
+  const isSelfVerified = !!selfInfo?.verified;
+  const potentialWinningsFormatted = potentialWinnings.toFixed(2);
 
   const handleJoin = () => {
     if (!hasEnoughAllowance) {
@@ -219,9 +405,14 @@ export function USDCChallengeDetail({ challengeId }: USDCChallengeDetailProps) {
     setShowCamera(true);
   };
 
-  const handleSkipPhoto = () => {
+  const handleSkipPhoto = async () => {
     setShowCamera(false);
-    markCompleted(challengeId);
+    try {
+      await markCompletedWithProof(challengeId, "skip-proof");
+    } catch (err) {
+      console.error("markCompletedWithProof failed, falling back", err);
+      markCompleted(challengeId);
+    }
     recordCompletion();
     fireConfetti();
   };
@@ -233,11 +424,6 @@ export function USDCChallengeDetail({ challengeId }: USDCChallengeDetailProps) {
   const canJoin = !hasJoined && !isEnded && !challenge.settled && !isCancelled;
   const canComplete = hasJoined && !hasCompleted && !isEnded && !challenge.settled && !isCancelled;
   const canSettle = isEnded && !challenge.settled && !isCancelled;
-
-  const potentialWinnings = completerCount > 0 
-    ? Number(challenge.totalPool) / (completerCount + (hasJoined && !hasCompleted ? 1 : 0))
-    : Number(challenge.totalPool);
-  const potentialWinningsFormatted = formatUSDCBalance(BigInt(Math.floor(potentialWinnings)));
 
   // Cancelled state
   if (isCancelled) {
@@ -334,7 +520,7 @@ export function USDCChallengeDetail({ challengeId }: USDCChallengeDetailProps) {
           <StatCard label="Entry Stake" value={`${stakeUSDC} USDC`} isUSDC />
           <StatCard label="Prize Pool" value={`${poolUSDC} USDC`} isUSDC highlight />
           <StatCard label="Runners" value={participantCount.toString()} />
-          <StatCard label="Finished" value={`${completerCount}/${participantCount}`} />
+          <StatCard label="Verified" value={`${verifiedCount}/${participantCount}`} />
         </div>
 
         {/* Progress Bar */}
@@ -342,13 +528,13 @@ export function USDCChallengeDetail({ challengeId }: USDCChallengeDetailProps) {
           <div className="flex items-center justify-between text-sm mb-2">
             <span className="text-stride-muted">Completion Rate</span>
             <span className="font-medium text-usdc-blue">
-              {participantCount > 0 ? Math.round((completerCount / participantCount) * 100) : 0}%
+              {participantCount > 0 ? Math.round((verifiedCount / participantCount) * 100) : 0}%
             </span>
           </div>
           <div className="h-3 bg-stride-dark rounded-full overflow-hidden">
             <div 
               className="h-full bg-usdc-blue transition-all duration-500"
-              style={{ width: `${participantCount > 0 ? (completerCount / participantCount) * 100 : 0}%` }}
+              style={{ width: `${participantCount > 0 ? (verifiedCount / participantCount) * 100 : 0}%` }}
             />
           </div>
         </div>
@@ -451,6 +637,11 @@ export function USDCChallengeDetail({ challengeId }: USDCChallengeDetailProps) {
               <p className="text-stride-muted mb-4">
                 Take a proof pic and claim your share of the prize pool!
               </p>
+              {posePrompt && (
+                <div className="p-3 bg-white/5 border border-white/10 rounded-xl mb-4 text-sm">
+                  Pose prompt for your proof pic: <span className="font-semibold text-white">{posePrompt}</span>
+                </div>
+              )}
               
               {/* Streak Badge */}
               <div className="flex justify-center mb-4">
@@ -459,15 +650,15 @@ export function USDCChallengeDetail({ challengeId }: USDCChallengeDetailProps) {
               
               <button
                 onClick={handleComplete}
-                disabled={isMarking || isMarkConfirming}
+                disabled={isMarking || isMarkConfirming || isMarkingWithProof || isMarkWithProofConfirming || isUploadingProof}
                 className="btn-primary w-full text-lg py-4 flex items-center justify-center gap-3"
               >
-                {isMarkConfirming ? (
+                {isMarkConfirming || isMarkWithProofConfirming ? (
                   <>
                     <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                     Confirming...
                   </>
-                ) : isMarking ? (
+                ) : isMarking || isMarkingWithProof || isUploadingProof ? (
                   <>
                     <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                     Submitting...
@@ -491,8 +682,14 @@ export function USDCChallengeDetail({ challengeId }: USDCChallengeDetailProps) {
               </div>
               <h3 className="text-lg font-bold mb-2 text-green-400">You&apos;re All Set! 🎉</h3>
               <p className="text-stride-muted mb-4">
-                Wait for the challenge to end, then settle to claim your winnings.
+                {approvalThresholdNum > 0
+                  ? `Wait for the challenge to end and at least ${approvalThresholdNum} peer approval${approvalThresholdNum !== 1 ? "s" : ""} to be eligible for payout.`
+                  : "Wait for the timer to end, then settle to claim your winnings."
+                }
               </p>
+              <div className="bg-white/5 border border-white/10 rounded-xl p-3 text-sm text-stride-muted mb-4">
+                Verification: {approvalThresholdNum === 0 ? "Auto-verified (solo challenge)" : `${selfInfo?.approvals ?? 0}/${approvalThresholdNum} approvals`}
+              </div>
               
               {/* Show proof pic if taken */}
               {proofPicUrl && (
@@ -519,8 +716,8 @@ export function USDCChallengeDetail({ challengeId }: USDCChallengeDetailProps) {
               </div>
               <h3 className="text-lg font-bold mb-2">Time&apos;s Up!</h3>
               <p className="text-stride-muted mb-6">
-                {completerCount > 0 
-                  ? `${completerCount} runner${completerCount !== 1 ? "s" : ""} finished! Settle to distribute ${poolUSDC} USDC.`
+                {verifiedCount > 0 
+                  ? `${verifiedCount} runner${verifiedCount !== 1 ? "s" : ""} verified! Settle to distribute ${poolUSDC} USDC.`
                   : "No one finished. Settle to refund all participants."
                 }
               </p>
@@ -559,18 +756,18 @@ export function USDCChallengeDetail({ challengeId }: USDCChallengeDetailProps) {
             </div>
             <h2 className="text-xl font-bold mb-2">Challenge Complete!</h2>
             <p className="text-stride-muted mb-4">
-              {completerCount > 0 
-                ? `${completerCount} winner${completerCount !== 1 ? "s" : ""} split ${poolUSDC} USDC`
+              {verifiedCount > 0 
+                ? `${verifiedCount} winner${verifiedCount !== 1 ? "s" : ""} split ${poolUSDC} USDC`
                 : "All participants were refunded"
               }
             </p>
             
             {/* Winner's winnings */}
-            {hasCompleted && completerCount > 0 && (
+            {isSelfVerified && verifiedCount > 0 && (
               <div className="bg-usdc-blue/10 border border-usdc-blue/30 rounded-xl p-4 mb-4 inline-block">
                 <p className="text-sm text-usdc-blue mb-1">You earned</p>
                 <p className="text-2xl font-bold text-usdc-blue">
-                  {formatUSDCBalance(BigInt(Math.floor(Number(challenge.totalPool) / completerCount)))} USDC
+                  {(poolUSDCNumber / verifiedCount).toFixed(2)} USDC
                 </p>
               </div>
             )}
@@ -586,9 +783,6 @@ export function USDCChallengeDetail({ challengeId }: USDCChallengeDetailProps) {
               Share Your Achievement
             </button>
           </div>
-
-          {/* Hype Reactions */}
-          <ReactionBar challengeId={challengeId} />
 
           {/* Rematch Card */}
           {!showRematchCard ? (
@@ -615,6 +809,105 @@ export function USDCChallengeDetail({ challengeId }: USDCChallengeDetailProps) {
         </div>
       )}
 
+      {/* Proof Gallery & Verification */}
+      <div className="card border-white/10">
+        <div className="flex items-center justify-between mb-2">
+          <h2 className="text-lg font-bold flex items-center gap-2">
+            <CircleLogo className="w-5 h-5" />
+            <span>Proof Gallery &amp; Verification</span>
+          </h2>
+          <span className="text-xs px-3 py-1 bg-white/5 rounded-full text-stride-muted border border-white/10">
+            Threshold: {approvalThresholdNum === 0 ? "auto" : `${approvalThresholdNum} peer${approvalThresholdNum !== 1 ? "s" : ""}`}
+          </span>
+        </div>
+        <p className="text-sm text-stride-muted mb-4">
+          Runners submit a proof pic with a pose prompt. Peers approve before payout.
+        </p>
+
+        {completers && completers.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {completers.map((runner: `0x${string}`) => {
+              const runnerLower = runner.toLowerCase();
+              const info = completionInfoMap[runnerLower];
+              const proof = proofs.find((p) => p.participant.toLowerCase() === runnerLower);
+              const approvals = info?.approvals ?? 0;
+              const verified = info?.verified;
+              const canVerifyRunner =
+                hasJoined &&
+                address &&
+                address.toLowerCase() !== runnerLower &&
+                !challenge.settled &&
+                !isCancelled &&
+                !approvalMap[runnerLower];
+
+              return (
+                <div key={runner} className="p-3 rounded-xl border border-white/10 bg-stride-dark">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="font-mono text-sm">
+                      {runner.slice(0, 8)}...{runner.slice(-6)}
+                    </div>
+                    <span
+                      className={`text-xs px-2 py-1 rounded-full ${
+                        verified
+                          ? "bg-green-500/20 text-green-300"
+                          : info?.claimed
+                            ? "bg-yellow-500/20 text-yellow-200"
+                            : "bg-white/5 text-stride-muted"
+                      }`}
+                    >
+                      {verified
+                        ? "Verified"
+                        : info?.claimed
+                          ? `Awaiting ${approvals}/${approvalThresholdNum || 0}`
+                          : "No claim"}
+                    </span>
+                  </div>
+
+                  <div className="aspect-[3/4] rounded-lg overflow-hidden bg-white/5 mb-3 flex items-center justify-center">
+                    {proof?.imageData ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={proof.imageData} alt="Proof pic" className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="text-stride-muted text-sm text-center px-4">No proof uploaded yet</div>
+                    )}
+                  </div>
+
+                  {proof?.posePrompt && (
+                    <p className="text-xs text-stride-muted mb-2">Pose prompt: {proof.posePrompt}</p>
+                  )}
+
+                  <div className="flex items-center justify-between text-xs text-stride-muted mb-3">
+                    <span>Approvals: {approvals}/{approvalThresholdNum || 0}</span>
+                    {approvalMap[runnerLower] && <span className="text-green-400">You voted</span>}
+                  </div>
+
+                  {canVerifyRunner && (
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => approveCompletion(challengeId, runner, true)}
+                        disabled={isApprovingCompletion || isApproveCompletionConfirming}
+                        className="flex-1 px-3 py-2 rounded-lg bg-green-500/20 border border-green-500/40 text-green-100 hover:bg-green-500/30 transition-colors text-sm"
+                      >
+                        Approve ✅
+                      </button>
+                      <button
+                        onClick={() => approveCompletion(challengeId, runner, false)}
+                        disabled={isApprovingCompletion || isApproveCompletionConfirming}
+                        className="flex-1 px-3 py-2 rounded-lg bg-red-500/20 border border-red-500/40 text-red-100 hover:bg-red-500/30 transition-colors text-sm"
+                      >
+                        Flag 🚩
+                      </button>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <p className="text-stride-muted text-sm">No completion claims yet.</p>
+        )}
+      </div>
+
       {/* Participants */}
       <div className="card border-usdc-blue/30">
         <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
@@ -628,7 +921,10 @@ export function USDCChallengeDetail({ challengeId }: USDCChallengeDetailProps) {
         {participants && participants.length > 0 ? (
           <div className="space-y-2">
             {participants.map((participant: `0x${string}`, index: number) => {
-              const isCompleter = completers?.includes(participant);
+              const info = completionInfoMap[participant.toLowerCase()];
+              const isCompleter = info?.claimed;
+              const isVerifiedRunner = info?.verified;
+              const approvalsForRunner = info?.approvals ?? 0;
               const isCurrentUser = participant.toLowerCase() === address?.toLowerCase();
               const isParticipantCreator = participant.toLowerCase() === challenge.creator.toLowerCase();
 
@@ -644,11 +940,13 @@ export function USDCChallengeDetail({ challengeId }: USDCChallengeDetailProps) {
                   <div className="flex items-center gap-3">
                     <div className="relative">
                       <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold ${
-                        isCompleter 
-                          ? "bg-gradient-to-br from-green-400 to-emerald-500 text-white" 
+                        isVerifiedRunner
+                          ? "bg-gradient-to-br from-green-400 to-emerald-500 text-white"
+                          : isCompleter 
+                          ? "bg-yellow-500 text-white" 
                           : "bg-usdc-blue text-white"
                       }`}>
-                        {isCompleter ? "✓" : `#${index + 1}`}
+                        {isVerifiedRunner ? "✓" : isCompleter ? "…" : `#${index + 1}`}
                       </div>
                       {isParticipantCreator && (
                         <div className="absolute -top-1 -right-1 w-5 h-5 bg-yellow-400 rounded-full flex items-center justify-center text-[10px] border-2 border-stride-gray">
@@ -671,11 +969,17 @@ export function USDCChallengeDetail({ challengeId }: USDCChallengeDetailProps) {
                     </div>
                   </div>
                   <span className={`text-sm font-medium px-3 py-1.5 rounded-full ${
-                    isCompleter 
-                      ? "bg-green-500/20 text-green-400" 
-                      : "bg-white/5 text-stride-muted"
+                    isVerifiedRunner
+                      ? "bg-green-500/20 text-green-400"
+                      : isCompleter
+                        ? "bg-yellow-500/20 text-yellow-200"
+                        : "bg-white/5 text-stride-muted"
                   }`}>
-                    {isCompleter ? "✓ Finished" : "Running..."}
+                    {isVerifiedRunner
+                      ? "✓ Verified"
+                      : isCompleter
+                        ? `Awaiting ${approvalsForRunner}/${approvalThresholdNum || 0}`
+                        : "Running..."}
                   </span>
                 </div>
               );
@@ -703,6 +1007,7 @@ export function USDCChallengeDetail({ challengeId }: USDCChallengeDetailProps) {
             challengeId={challengeId}
             onCapture={handleCameraCapture}
             onClose={() => setShowCamera(false)}
+            posePrompt={posePrompt}
           />
           {/* Skip photo option */}
           <button
@@ -715,9 +1020,9 @@ export function USDCChallengeDetail({ challengeId }: USDCChallengeDetailProps) {
       )}
 
       {/* Victory Celebration Modal */}
-      {showVictory && completerCount > 0 && (
+      {showVictory && verifiedCount > 0 && (
         <VictoryCelebration
-          winAmount={formatUSDCBalance(BigInt(Math.floor(Number(challenge.totalPool) / completerCount)))}
+          winAmount={(poolUSDCNumber / verifiedCount).toFixed(2)}
           currency="USDC"
           onClose={() => setShowVictory(false)}
         />
@@ -731,9 +1036,9 @@ export function USDCChallengeDetail({ challengeId }: USDCChallengeDetailProps) {
           stakeAmount={stakeUSDC}
           currency="USDC"
           participantCount={participantCount}
-          completerCount={completerCount}
-          winAmount={hasCompleted && completerCount > 0 ? formatUSDCBalance(BigInt(Math.floor(Number(challenge.totalPool) / completerCount))) : undefined}
-          isWinner={hasCompleted && challenge.settled}
+          completerCount={verifiedCount}
+          winAmount={isSelfVerified && verifiedCount > 0 ? (poolUSDCNumber / verifiedCount).toFixed(2) : undefined}
+          isWinner={isSelfVerified && challenge.settled}
           participants={participants ? [...participants] : undefined}
           onClose={() => setShowShareCard(false)}
         />

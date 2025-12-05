@@ -1,14 +1,16 @@
 "use client";
 
-import { useAccount } from "wagmi";
+import { useAccount, useReadContracts } from "wagmi";
 import {
   useChallenge,
   useParticipants,
   useHasJoined,
   useHasCompleted,
   useCompleters,
+  useVerifiedCompleters,
   useJoinChallenge,
   useMarkCompleted,
+  useMarkCompletedWithProof,
   useSettleChallenge,
   useVoteCancelChallenge,
   useCreatorCancelChallenge,
@@ -17,12 +19,15 @@ import {
   useVoteEarlySettle,
   useHasVotedEarlySettle,
   useEarlySettleVoteStatus,
+  useApprovalThreshold,
+  useApproveCompletion,
 } from "@/hooks/useChallenge";
+import { STRIDE_CHALLENGE_ABI, STRIDE_CHALLENGE_ADDRESS } from "@/config/contracts";
 import { formatEther } from "viem";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { ShareModal } from "./ShareModal";
 import { WalkProofCapture, WalkProofDisplay, getWalkProof } from "./WalkProof";
-import { VictoryCelebration, ReactionBar, fireConfetti } from "./HypeReactions";
+import { VictoryCelebration, fireConfetti } from "./HypeReactions";
 import { ShareCard } from "./ShareCard";
 import { RematchCard } from "./RematchButton";
 import { useStreaks, StreakBadge } from "@/hooks/useStreaks";
@@ -31,6 +36,22 @@ interface ChallengeDetailProps {
   challengeId: bigint;
 }
 
+interface ProofEntry {
+  challengeId: string;
+  participant: string;
+  imageData: string;
+  posePrompt?: string;
+  proofCid: string;
+  createdAt: number;
+}
+
+type CompletionInfoResult = {
+  claimed: boolean;
+  approvals: bigint;
+  verified: boolean;
+  proofCid: string;
+};
+
 export function ChallengeDetail({ challengeId }: ChallengeDetailProps) {
   const { address } = useAccount();
   const { data: challenge, isLoading, refetch } = useChallenge(challengeId);
@@ -38,10 +59,12 @@ export function ChallengeDetail({ challengeId }: ChallengeDetailProps) {
   const { data: hasJoined, refetch: refetchJoined } = useHasJoined(challengeId, address);
   const { data: hasCompleted, refetch: refetchCompleted } = useHasCompleted(challengeId, address);
   const { data: completers, refetch: refetchCompleters } = useCompleters(challengeId);
+  const { data: verifiedCompleters, refetch: refetchVerifiedCompleters } = useVerifiedCompleters(challengeId);
   const { data: hasVotedCancel } = useHasVotedCancel(challengeId, address);
   const { data: cancelVoteStatus, refetch: refetchCancelVotes } = useCancelVoteStatus(challengeId);
   const { data: hasVotedEarlySettle, refetch: refetchEarlySettleVote } = useHasVotedEarlySettle(challengeId, address);
   const { data: earlySettleVoteStatus, refetch: refetchEarlySettleStatus } = useEarlySettleVoteStatus(challengeId);
+  const { data: approvalThreshold } = useApprovalThreshold(challengeId);
 
   const {
     joinChallenge,
@@ -56,6 +79,20 @@ export function ChallengeDetail({ challengeId }: ChallengeDetailProps) {
     isConfirming: isMarkConfirming,
     isSuccess: markSuccess,
   } = useMarkCompleted();
+
+  const {
+    markCompletedWithProof,
+    isPending: isMarkingWithProof,
+    isConfirming: isMarkWithProofConfirming,
+    isSuccess: markWithProofSuccess,
+  } = useMarkCompletedWithProof();
+
+  const {
+    approveCompletion,
+    isPending: isApproving,
+    isConfirming: isApproveConfirming,
+    isSuccess: approveSuccess,
+  } = useApproveCompletion();
 
   const {
     settleChallenge,
@@ -91,9 +128,10 @@ export function ChallengeDetail({ challengeId }: ChallengeDetailProps) {
   const [timeLeft, setTimeLeft] = useState("");
   const [mounted, setMounted] = useState(false);
   
-  // New feature states
+  // Walk proof states
   const [showWalkProof, setShowWalkProof] = useState(false);
   const [walkProofData, setWalkProofData] = useState<{ distance: number; duration: number; samples: { lat: number; lon: number; t: number }[]; suspicious: boolean } | null>(null);
+  const [proofs, setProofs] = useState<ProofEntry[]>([]);
   const [showVictory, setShowVictory] = useState(false);
   const [showShareCard, setShowShareCard] = useState(false);
   const [showRematchCard, setShowRematchCard] = useState(false);
@@ -111,6 +149,25 @@ export function ChallengeDetail({ challengeId }: ChallengeDetailProps) {
     }
   }, [challengeId]);
 
+  const fetchProofs = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/proofs?challengeId=${challengeId.toString()}`, {
+        cache: "no-store",
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      setProofs(data.proofs || []);
+    } catch (err) {
+      console.error("Failed to load proofs", err);
+    }
+  }, [challengeId]);
+
+  useEffect(() => {
+    fetchProofs();
+    const interval = setInterval(fetchProofs, 8000);
+    return () => clearInterval(interval);
+  }, [fetchProofs]);
+
   // Show victory celebration for winners
   useEffect(() => {
     if (challenge?.settled && hasCompleted && hasJoined && !hasSeenVictory) {
@@ -125,19 +182,21 @@ export function ChallengeDetail({ challengeId }: ChallengeDetailProps) {
   }, [challenge?.settled, hasCompleted, hasJoined, challengeId, hasSeenVictory]);
 
   useEffect(() => {
-    if (joinSuccess || markSuccess || settleSuccess || voteCancelSuccess || creatorCancelSuccess || earlySettleSuccess) {
+    if (joinSuccess || markSuccess || markWithProofSuccess || settleSuccess || voteCancelSuccess || creatorCancelSuccess || earlySettleSuccess || approveSuccess) {
       setTimeout(() => {
         refetch();
         refetchParticipants();
         refetchJoined();
         refetchCompleted();
         refetchCompleters();
+        refetchVerifiedCompleters();
         refetchCancelVotes();
         refetchEarlySettleVote();
         refetchEarlySettleStatus();
+        fetchProofs();
       }, 2000);
     }
-  }, [joinSuccess, markSuccess, settleSuccess, voteCancelSuccess, creatorCancelSuccess, earlySettleSuccess, refetch, refetchParticipants, refetchJoined, refetchCompleted, refetchCompleters, refetchCancelVotes, refetchEarlySettleVote, refetchEarlySettleStatus]);
+  }, [joinSuccess, markSuccess, markWithProofSuccess, settleSuccess, voteCancelSuccess, creatorCancelSuccess, earlySettleSuccess, approveSuccess, refetch, refetchParticipants, refetchJoined, refetchCompleted, refetchCompleters, refetchVerifiedCompleters, refetchCancelVotes, refetchEarlySettleVote, refetchEarlySettleStatus, fetchProofs]);
 
   useEffect(() => {
     if (!challenge) return;
@@ -171,17 +230,89 @@ export function ChallengeDetail({ challengeId }: ChallengeDetailProps) {
     return () => clearInterval(interval);
   }, [challenge]);
 
+  // Batch-read completion info + approvals for gallery
+  const completionContracts = useMemo(() => {
+    if (!completers || completers.length === 0) return [];
+    return completers.map((runner) => ({
+      address: STRIDE_CHALLENGE_ADDRESS,
+      abi: STRIDE_CHALLENGE_ABI,
+      functionName: "getCompletionInfo",
+      args: [challengeId, runner],
+    }));
+  }, [challengeId, completers]);
+
+  const { data: completionInfos } = useReadContracts({
+    contracts: completionContracts,
+    query: {
+      enabled: completionContracts.length > 0,
+    },
+  });
+
+  const approvalContracts = useMemo(() => {
+    if (!address || !completers || completers.length === 0) return [];
+    return completers.map((runner) => ({
+      address: STRIDE_CHALLENGE_ADDRESS,
+      abi: STRIDE_CHALLENGE_ABI,
+      functionName: "hasApproved",
+      args: [challengeId, runner, address],
+    }));
+  }, [address, challengeId, completers]);
+
+  const { data: approvalInfos } = useReadContracts({
+    contracts: approvalContracts,
+    query: {
+      enabled: approvalContracts.length > 0,
+    },
+  });
+
+  const completionInfoMap = useMemo(() => {
+    const map: Record<string, { claimed: boolean; approvals: number; verified: boolean; proofCid?: string }> = {};
+    if (completers) {
+      completers.forEach((runner, idx) => {
+        const info = completionInfos?.[idx]?.result as CompletionInfoResult | undefined;
+        if (info) {
+          map[runner.toLowerCase()] = {
+            claimed: info.claimed,
+            approvals: Number(info.approvals ?? 0n),
+            verified: info.verified,
+            proofCid: info.proofCid,
+          };
+        }
+      });
+    }
+    return map;
+  }, [completionInfos, completers]);
+
+  const approvalMap = useMemo(() => {
+    const map: Record<string, boolean> = {};
+    if (completers && approvalInfos) {
+      completers.forEach((runner, idx) => {
+        const hasApproved = approvalInfos[idx]?.result as boolean | undefined;
+        if (hasApproved !== undefined) {
+          map[runner.toLowerCase()] = Boolean(hasApproved);
+        }
+      });
+    }
+    return map;
+  }, [approvalInfos, completers]);
+
   // Define handlers that use hooks before any conditional returns
-  const handleWalkProofSubmit = useCallback((walkData: { distance: number; duration: number; samples: { lat: number; lon: number; t: number }[]; suspicious: boolean }) => {
+  const handleWalkProofSubmit = useCallback(async (walkData: { distance: number; duration: number; samples: { lat: number; lon: number; t: number }[]; suspicious: boolean }) => {
     setWalkProofData(walkData);
     setShowWalkProof(false);
-    // Now mark as completed
-    markCompleted(challengeId);
-    // Record streak
+    
+    // Try to mark with proof CID, fall back to regular mark
+    try {
+      const proofCid = `walk-${Date.now()}`;
+      await markCompletedWithProof(challengeId, proofCid);
+    } catch {
+      markCompleted(challengeId);
+    }
+    
+    // Record streak and celebrate
     recordCompletion();
-    // Fire confetti!
     fireConfetti();
-  }, [challengeId, markCompleted, recordCompletion]);
+  }, [challengeId, markCompleted, markCompletedWithProof, recordCompletion]);
 
   if (!mounted || isLoading || !challenge) {
     return (
@@ -205,6 +336,8 @@ export function ChallengeDetail({ challengeId }: ChallengeDetailProps) {
   const poolEth = formatEther(challenge.totalPool);
   const participantCount = participants?.length || 0;
   const completerCount = completers?.length || 0;
+  const verifiedCount = verifiedCompleters?.length || 0;
+  const approvalThresholdNum = approvalThreshold ? Number(approvalThreshold) : 0;
   const isCancelled = challenge.cancelled;
   const isCreator = address?.toLowerCase() === challenge.creator.toLowerCase();
   const canCreatorCancel = isCreator && participantCount === 1 && !challenge.settled && !isCancelled;
@@ -216,13 +349,6 @@ export function ChallengeDetail({ challengeId }: ChallengeDetailProps) {
   const handleComplete = () => {
     // Open walk proof capture
     setShowWalkProof(true);
-  };
-
-  const handleSkipProof = () => {
-    setShowWalkProof(false);
-    markCompleted(challengeId);
-    recordCompletion();
-    fireConfetti();
   };
 
   const handleSettle = () => {
@@ -244,15 +370,26 @@ export function ChallengeDetail({ challengeId }: ChallengeDetailProps) {
     setShowEarlySettleModal(false);
   };
 
+  const handleApproveRunner = (runner: `0x${string}`) => {
+    approveCompletion(challengeId, runner, true);
+  };
+
+  const handleFlagRunner = (runner: `0x${string}`) => {
+    approveCompletion(challengeId, runner, false);
+  };
+
   const canJoin = !hasJoined && !isEnded && !challenge.settled && !isCancelled;
   const canVoteEarlySettle = hasJoined && !hasVotedEarlySettle && !challenge.settled && !isCancelled && !isEnded;
   const canComplete = hasJoined && !hasCompleted && !isEnded && !challenge.settled && !isCancelled;
   const canSettle = isEnded && !challenge.settled && !isCancelled;
   const canVoteCancel = hasJoined && !hasVotedCancel && !challenge.settled && !isCancelled;
 
-  const potentialWinnings = completerCount > 0 
-    ? Number(poolEth) / (completerCount + (hasJoined && !hasCompleted ? 1 : 0))
+  const potentialWinnings = (verifiedCount > 0 ? verifiedCount : completerCount) > 0 
+    ? Number(poolEth) / ((verifiedCount > 0 ? verifiedCount : completerCount) + (hasJoined && !hasCompleted ? 1 : 0))
     : Number(poolEth);
+
+  const selfInfo = address ? completionInfoMap[address.toLowerCase()] : undefined;
+  const isSelfVerified = !!selfInfo?.verified;
 
   // Cancelled state
   if (isCancelled) {
@@ -383,7 +520,7 @@ export function ChallengeDetail({ challengeId }: ChallengeDetailProps) {
           <StatCard label="Entry Stake" value={`${stakeEth} ETH`} icon="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
           <StatCard label="Prize Pool" value={`${poolEth} ETH`} icon="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" highlight />
           <StatCard label="Runners" value={participantCount.toString()} icon="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-          <StatCard label="Finished" value={`${completerCount}/${participantCount}`} icon="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+          <StatCard label="Verified" value={`${verifiedCount}/${participantCount}`} icon="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
         </div>
 
         {/* Progress Bar */}
@@ -391,13 +528,13 @@ export function ChallengeDetail({ challengeId }: ChallengeDetailProps) {
           <div className="flex items-center justify-between text-sm mb-2">
             <span className="text-stride-muted">Completion Rate</span>
             <span className="font-medium text-stride-purple">
-              {participantCount > 0 ? Math.round((completerCount / participantCount) * 100) : 0}%
+              {participantCount > 0 ? Math.round((verifiedCount / participantCount) * 100) : 0}%
             </span>
           </div>
           <div className="h-3 bg-stride-dark rounded-full overflow-hidden">
             <div 
               className="h-full bg-gradient-to-r from-stride-purple to-pink-500 transition-all duration-500"
-              style={{ width: `${participantCount > 0 ? (completerCount / participantCount) * 100 : 0}%` }}
+              style={{ width: `${participantCount > 0 ? (verifiedCount / participantCount) * 100 : 0}%` }}
             />
           </div>
         </div>
@@ -492,15 +629,15 @@ export function ChallengeDetail({ challengeId }: ChallengeDetailProps) {
               
               <button
                 onClick={handleComplete}
-                disabled={isMarking || isMarkConfirming}
+                disabled={isMarking || isMarkConfirming || isMarkingWithProof || isMarkWithProofConfirming}
                 className="btn-primary w-full text-lg py-4 flex items-center justify-center gap-3"
               >
-                {isMarkConfirming ? (
+                {isMarkConfirming || isMarkWithProofConfirming ? (
                   <>
                     <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                     Confirming...
                   </>
-                ) : isMarking ? (
+                ) : isMarking || isMarkingWithProof ? (
                   <>
                     <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                     Submitting...
@@ -526,8 +663,14 @@ export function ChallengeDetail({ challengeId }: ChallengeDetailProps) {
               </div>
               <h3 className="text-lg font-bold mb-2 text-green-400">You&apos;re All Set! 🎉</h3>
               <p className="text-stride-muted mb-4">
-                Wait for the challenge to end, then settle to claim your winnings.
+                {approvalThresholdNum > 0
+                  ? `Wait for the challenge to end and at least ${approvalThresholdNum} peer approval${approvalThresholdNum !== 1 ? "s" : ""} to be eligible for payout.`
+                  : "Wait for the timer to end, then settle to claim your winnings."
+                }
               </p>
+              <div className="bg-white/5 border border-white/10 rounded-xl p-3 text-sm text-stride-muted mb-4">
+                Verification: {approvalThresholdNum === 0 ? "Auto-verified (solo challenge)" : `${selfInfo?.approvals ?? 0}/${approvalThresholdNum} approvals`}
+              </div>
               
               {/* Show walk proof if recorded */}
               {walkProofData && (
@@ -556,8 +699,8 @@ export function ChallengeDetail({ challengeId }: ChallengeDetailProps) {
               </div>
               <h3 className="text-lg font-bold mb-2">Time&apos;s Up!</h3>
               <p className="text-stride-muted mb-6">
-                {completerCount > 0 
-                  ? `${completerCount} runner${completerCount !== 1 ? "s" : ""} finished! Settle to distribute ${poolEth} ETH.`
+                {verifiedCount > 0 
+                  ? `${verifiedCount} runner${verifiedCount !== 1 ? "s" : ""} verified! Settle to distribute ${poolEth} ETH.`
                   : "No one finished. Settle to refund all participants."
                 }
               </p>
@@ -596,18 +739,18 @@ export function ChallengeDetail({ challengeId }: ChallengeDetailProps) {
             </div>
             <h2 className="text-xl font-bold mb-2">Challenge Complete!</h2>
             <p className="text-stride-muted mb-4">
-              {completerCount > 0 
-                ? `${completerCount} winner${completerCount !== 1 ? "s" : ""} split ${poolEth} ETH`
+              {verifiedCount > 0 
+                ? `${verifiedCount} winner${verifiedCount !== 1 ? "s" : ""} split ${poolEth} ETH`
                 : "All participants were refunded"
               }
             </p>
             
             {/* Winner's winnings */}
-            {hasCompleted && completerCount > 0 && (
+            {isSelfVerified && verifiedCount > 0 && (
               <div className="bg-green-500/10 border border-green-500/30 rounded-xl p-4 mb-4 inline-block">
                 <p className="text-sm text-green-400 mb-1">You earned</p>
                 <p className="text-2xl font-bold text-green-400">
-                  {(Number(poolEth) / completerCount).toFixed(4)} ETH
+                  {(Number(poolEth) / verifiedCount).toFixed(4)} ETH
                 </p>
               </div>
             )}
@@ -623,9 +766,6 @@ export function ChallengeDetail({ challengeId }: ChallengeDetailProps) {
               Share Your Achievement
             </button>
           </div>
-
-          {/* Hype Reactions */}
-          <ReactionBar challengeId={challengeId} />
 
           {/* Rematch Card */}
           {!showRematchCard ? (
@@ -652,6 +792,100 @@ export function ChallengeDetail({ challengeId }: ChallengeDetailProps) {
         </div>
       )}
 
+      {/* Proof Gallery & Verification */}
+      <div className="card border-white/10">
+        <div className="flex items-center justify-between mb-2">
+          <h2 className="text-lg font-bold flex items-center gap-2">
+            <span>Proof Gallery &amp; Verification</span>
+          </h2>
+          <span className="text-xs px-3 py-1 bg-white/5 rounded-full text-stride-muted border border-white/10">
+            Threshold: {approvalThresholdNum === 0 ? "auto" : `${approvalThresholdNum} peer${approvalThresholdNum !== 1 ? "s" : ""}`}
+          </span>
+        </div>
+        <p className="text-sm text-stride-muted mb-4">
+          Runners submit walk proof with GPS data. Peers approve before payout.
+        </p>
+
+        {completers && completers.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {completers.map((runner: `0x${string}`) => {
+              const runnerLower = runner.toLowerCase();
+              const info = completionInfoMap[runnerLower];
+              const proof = proofs.find((p) => p.participant.toLowerCase() === runnerLower);
+              const approvals = info?.approvals ?? 0;
+              const verified = info?.verified;
+              const canVerifyRunner =
+                hasJoined &&
+                address &&
+                address.toLowerCase() !== runnerLower &&
+                !challenge.settled &&
+                !isCancelled &&
+                !approvalMap[runnerLower];
+
+              return (
+                <div key={runner} className="p-3 rounded-xl border border-white/10 bg-stride-dark">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="font-mono text-sm">
+                      {runner.slice(0, 8)}...{runner.slice(-6)}
+                    </div>
+                    <span
+                      className={`text-xs px-2 py-1 rounded-full ${
+                        verified
+                          ? "bg-green-500/20 text-green-300"
+                          : info?.claimed
+                            ? "bg-yellow-500/20 text-yellow-200"
+                            : "bg-white/5 text-stride-muted"
+                      }`}
+                    >
+                      {verified
+                        ? "Verified"
+                        : info?.claimed
+                          ? `Awaiting ${approvals}/${approvalThresholdNum || 0}`
+                          : "No claim"}
+                    </span>
+                  </div>
+
+                  <div className="aspect-[3/4] rounded-lg overflow-hidden bg-white/5 mb-3 flex items-center justify-center">
+                    {proof?.imageData ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={proof.imageData} alt="Proof pic" className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="text-stride-muted text-sm text-center px-4">Walk data submitted</div>
+                    )}
+                  </div>
+
+                  <div className="flex items-center justify-between text-xs text-stride-muted mb-3">
+                    <span>Approvals: {approvals}/{approvalThresholdNum || 0}</span>
+                    {approvalMap[runnerLower] && <span className="text-green-400">You voted</span>}
+                  </div>
+
+                  {canVerifyRunner && (
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => handleApproveRunner(runner)}
+                        disabled={isApproving || isApproveConfirming}
+                        className="flex-1 px-3 py-2 rounded-lg bg-green-500/20 border border-green-500/40 text-green-100 hover:bg-green-500/30 transition-colors text-sm"
+                      >
+                        Approve ✅
+                      </button>
+                      <button
+                        onClick={() => handleFlagRunner(runner)}
+                        disabled={isApproving || isApproveConfirming}
+                        className="flex-1 px-3 py-2 rounded-lg bg-red-500/20 border border-red-500/40 text-red-100 hover:bg-red-500/30 transition-colors text-sm"
+                      >
+                        Flag 🚩
+                      </button>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <p className="text-stride-muted text-sm">No completion claims yet.</p>
+        )}
+      </div>
+
       {/* Participants */}
       <div className="card border-white/10">
         <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
@@ -667,7 +901,10 @@ export function ChallengeDetail({ challengeId }: ChallengeDetailProps) {
         {participants && participants.length > 0 ? (
           <div className="space-y-2">
             {participants.map((participant: `0x${string}`, index: number) => {
-              const isCompleter = completers?.includes(participant);
+              const info = completionInfoMap[participant.toLowerCase()];
+              const isCompleter = info?.claimed;
+              const isVerifiedRunner = info?.verified;
+              const approvalsForRunner = info?.approvals ?? 0;
               const isCurrentUser = participant.toLowerCase() === address?.toLowerCase();
               const isParticipantCreator = participant.toLowerCase() === challenge.creator.toLowerCase();
 
@@ -710,11 +947,17 @@ export function ChallengeDetail({ challengeId }: ChallengeDetailProps) {
                     </div>
                   </div>
                   <span className={`text-sm font-medium px-3 py-1.5 rounded-full ${
-                    isCompleter 
-                      ? "bg-green-500/20 text-green-400" 
-                      : "bg-white/5 text-stride-muted"
+                    isVerifiedRunner
+                      ? "bg-green-500/20 text-green-400"
+                      : isCompleter
+                        ? "bg-yellow-500/20 text-yellow-300"
+                        : "bg-white/5 text-stride-muted"
                   }`}>
-                    {isCompleter ? "✓ Finished" : "Running..."}
+                    {isVerifiedRunner
+                      ? "✓ Verified"
+                      : isCompleter
+                        ? `Awaiting ${approvalsForRunner}/${approvalThresholdNum || 0}`
+                        : "Running..."}
                   </span>
                 </div>
               );
@@ -765,7 +1008,6 @@ export function ChallengeDetail({ challengeId }: ChallengeDetailProps) {
               </>
             ) : (
               <>
-                {/* Info about early ending options */}
                 <div className="p-3 bg-blue-500/10 border border-blue-500/30 rounded-xl mb-4">
                   <p className="text-xs text-blue-400">
                     <strong>💡 Want to end early with payouts?</strong> If all participants have finished their runs, you can wait for the timer to expire and then settle. Only completers will get paid.
@@ -899,9 +1141,9 @@ export function ChallengeDetail({ challengeId }: ChallengeDetailProps) {
       )}
 
       {/* Victory Celebration Modal */}
-      {showVictory && completerCount > 0 && (
+      {showVictory && verifiedCount > 0 && (
         <VictoryCelebration
-          winAmount={(Number(poolEth) / completerCount).toFixed(4)}
+          winAmount={(Number(poolEth) / verifiedCount).toFixed(4)}
           currency="ETH"
           onClose={() => setShowVictory(false)}
         />
@@ -915,9 +1157,9 @@ export function ChallengeDetail({ challengeId }: ChallengeDetailProps) {
           stakeAmount={stakeEth}
           currency="ETH"
           participantCount={participantCount}
-          completerCount={completerCount}
-          winAmount={hasCompleted && completerCount > 0 ? (Number(poolEth) / completerCount).toFixed(4) : undefined}
-          isWinner={hasCompleted && challenge.settled}
+          completerCount={verifiedCount}
+          winAmount={isSelfVerified && verifiedCount > 0 ? (Number(poolEth) / verifiedCount).toFixed(4) : undefined}
+          isWinner={isSelfVerified && challenge.settled}
           participants={participants ? [...participants] : undefined}
           onClose={() => setShowShareCard(false)}
         />

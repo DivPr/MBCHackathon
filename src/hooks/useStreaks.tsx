@@ -36,46 +36,24 @@ function saveStreakData(data: StreakData) {
   localStorage.setItem(STREAK_KEY, JSON.stringify(data));
 }
 
-// Check if two dates are consecutive days
-function areConsecutiveDays(date1: string, date2: string): boolean {
-  const d1 = new Date(date1);
-  const d2 = new Date(date2);
-  
-  // Reset times to midnight for comparison
-  d1.setHours(0, 0, 0, 0);
-  d2.setHours(0, 0, 0, 0);
-  
-  const diff = Math.abs(d1.getTime() - d2.getTime());
-  return diff <= ONE_DAY_MS;
-}
-
-// Check if a date is today
-function isToday(dateStr: string): boolean {
+// Check if two dates are consecutive calendar days (yesterday -> today)
+function isYesterday(dateStr: string): boolean {
   const date = new Date(dateStr);
   const today = new Date();
-  
+  date.setHours(0, 0, 0, 0);
+  today.setHours(0, 0, 0, 0);
+  const diff = today.getTime() - date.getTime();
+  return diff === ONE_DAY_MS;
+}
+
+function isSameDay(dateStr: string): boolean {
+  const date = new Date(dateStr);
+  const today = new Date();
   return (
     date.getDate() === today.getDate() &&
     date.getMonth() === today.getMonth() &&
     date.getFullYear() === today.getFullYear()
   );
-}
-
-// Check if streak is still valid (completed within last 24-48 hours)
-function isStreakValid(lastDate: string | null): boolean {
-  if (!lastDate) return true; // New streak
-  
-  const last = new Date(lastDate);
-  const now = new Date();
-  
-  // Reset times to midnight
-  last.setHours(0, 0, 0, 0);
-  now.setHours(0, 0, 0, 0);
-  
-  const diff = now.getTime() - last.getTime();
-  
-  // Valid if completed today or yesterday
-  return diff <= ONE_DAY_MS * 2;
 }
 
 export function useStreaks() {
@@ -92,34 +70,29 @@ export function useStreaks() {
     setMounted(true);
     const data = getStreakData();
     
-    // Check if streak is still valid
-    if (!isStreakValid(data.lastCompletedDate)) {
-      // Streak broken, reset current streak
+    // If last completion is older than yesterday, streak resets
+    if (data.lastCompletedDate && !isSameDay(data.lastCompletedDate) && !isYesterday(data.lastCompletedDate)) {
       data.currentStreak = 0;
       saveStreakData(data);
     }
-    
+
     setStreakData(data);
   }, []);
 
   // Record a completed challenge
   const recordCompletion = useCallback(() => {
     const data = getStreakData();
-    const today = new Date().toISOString().split("T")[0];
+    const today = new Date().toISOString().split("T")[0]; // YYYY-MM-DD at local TZ
     
     // Don't count if already completed today
-    if (data.lastCompletedDate && isToday(data.lastCompletedDate)) {
+    if (data.lastCompletedDate && isSameDay(data.lastCompletedDate)) {
       return data;
     }
     
-    // Check if this continues the streak
-    if (data.lastCompletedDate && areConsecutiveDays(data.lastCompletedDate, today)) {
-      data.currentStreak += 1;
-    } else if (!data.lastCompletedDate || isStreakValid(data.lastCompletedDate)) {
-      // First completion or continuing streak
+    // Daily streak: must be yesterday to keep streak, otherwise reset to 1
+    if (data.lastCompletedDate && isYesterday(data.lastCompletedDate)) {
       data.currentStreak += 1;
     } else {
-      // Streak broken, start new streak
       data.currentStreak = 1;
     }
     

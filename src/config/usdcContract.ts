@@ -196,6 +196,27 @@ export const STRIDE_USDC_CHALLENGE_ABI = [
   },
   {
     type: "event",
+    name: "CompletionClaimed",
+    inputs: [
+      { name: "challengeId", type: "uint256", indexed: true },
+      { name: "participant", type: "address", indexed: true },
+      { name: "proofCid", type: "string", indexed: false },
+    ],
+  },
+  {
+    type: "event",
+    name: "CompletionApproved",
+    inputs: [
+      { name: "challengeId", type: "uint256", indexed: true },
+      { name: "runner", type: "address", indexed: true },
+      { name: "verifier", type: "address", indexed: true },
+      { name: "isValid", type: "bool", indexed: false },
+      { name: "approvals", type: "uint256", indexed: false },
+      { name: "requiredApprovals", type: "uint256", indexed: false },
+    ],
+  },
+  {
+    type: "event",
     name: "ChallengeSettled",
     inputs: [
       { name: "challengeId", type: "uint256", indexed: true },
@@ -290,6 +311,52 @@ export const STRIDE_USDC_CHALLENGE_ABI = [
     name: "getCompleters",
     inputs: [{ name: "challengeId", type: "uint256" }],
     outputs: [{ name: "", type: "address[]" }],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "getVerifiedCompleters",
+    inputs: [{ name: "challengeId", type: "uint256" }],
+    outputs: [{ name: "", type: "address[]" }],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "getCompletionInfo",
+    inputs: [
+      { name: "challengeId", type: "uint256" },
+      { name: "runner", type: "address" },
+    ],
+    outputs: [
+      {
+        name: "",
+        type: "tuple",
+        components: [
+          { name: "claimed", type: "bool" },
+          { name: "approvals", type: "uint256" },
+          { name: "verified", type: "bool" },
+          { name: "proofCid", type: "string" },
+        ],
+      },
+    ],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "hasApproved",
+    inputs: [
+      { name: "challengeId", type: "uint256" },
+      { name: "runner", type: "address" },
+      { name: "voter", type: "address" },
+    ],
+    outputs: [{ name: "", type: "bool" }],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "getApprovalThreshold",
+    inputs: [{ name: "challengeId", type: "uint256" }],
+    outputs: [{ name: "", type: "uint256" }],
     stateMutability: "view",
   },
   {
@@ -410,6 +477,27 @@ export const STRIDE_USDC_CHALLENGE_ABI = [
     type: "function",
     name: "markCompleted",
     inputs: [{ name: "challengeId", type: "uint256" }],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
+    name: "markCompletedWithProof",
+    inputs: [
+      { name: "challengeId", type: "uint256" },
+      { name: "proofCid", type: "string" },
+    ],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
+    name: "approveCompletion",
+    inputs: [
+      { name: "challengeId", type: "uint256" },
+      { name: "runner", type: "address" },
+      { name: "isValid", type: "bool" },
+    ],
     outputs: [],
     stateMutability: "nonpayable",
   },
