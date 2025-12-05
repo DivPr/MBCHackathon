@@ -1,16 +1,20 @@
 "use client";
 
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { useAccount } from "wagmi";
 import { ConnectButton } from "@/components/ConnectButton";
 import { ChallengeDetail } from "@/components/ChallengeDetail";
+import { USDCChallengeDetail } from "@/components/USDCChallengeDetail";
 import Link from "next/link";
 import { useState, useEffect } from "react";
 
 export default function ChallengePage() {
   const params = useParams();
+  const searchParams = useSearchParams();
   const { isConnected } = useAccount();
   const challengeId = params.id as string;
+  const challengeType = searchParams.get("type");
+  const isUSDC = challengeType === "usdc";
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -59,7 +63,11 @@ export default function ChallengePage() {
             <div className="h-4 bg-white/5 rounded w-2/3" />
           </div>
         ) : isConnected ? (
-          <ChallengeDetail challengeId={BigInt(challengeId)} />
+          isUSDC ? (
+            <USDCChallengeDetail challengeId={BigInt(challengeId)} />
+          ) : (
+            <ChallengeDetail challengeId={BigInt(challengeId)} />
+          )
         ) : (
           <div className="card text-center py-16 border-white/10">
             <div className="w-20 h-20 bg-gradient-to-br from-stride-purple/20 to-pink-500/20 rounded-2xl flex items-center justify-center mx-auto mb-6">
