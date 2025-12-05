@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useCallback, useEffect } from "react";
+import { saveWalkProof } from "./WalkProof";
 
 interface GpsSample {
   lat: number;
@@ -237,6 +238,11 @@ export function WalkTracker({ challengeId, onWalkComplete }: WalkTrackerProps) {
       samples,
       suspicious,
     };
+
+    // Save walk proof if associated with a challenge
+    if (challengeId) {
+      saveWalkProof(BigInt(challengeId), walkData);
+    }
 
     // Callback for parent component
     onWalkComplete?.(walkData);

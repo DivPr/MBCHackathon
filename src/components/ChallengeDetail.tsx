@@ -21,7 +21,7 @@ import {
 import { formatEther } from "viem";
 import { useState, useEffect, useCallback } from "react";
 import { ShareModal } from "./ShareModal";
-import { ProofPicCamera, ProofPicDisplay, getProofPic } from "./ProofPic";
+import { WalkProofCapture, WalkProofDisplay, getWalkProof } from "./WalkProof";
 import { VictoryCelebration, ReactionBar, fireConfetti } from "./HypeReactions";
 import { ShareCard } from "./ShareCard";
 import { RematchCard } from "./RematchButton";
@@ -92,8 +92,8 @@ export function ChallengeDetail({ challengeId }: ChallengeDetailProps) {
   const [mounted, setMounted] = useState(false);
   
   // New feature states
-  const [showCamera, setShowCamera] = useState(false);
-  const [proofPicUrl, setProofPicUrl] = useState<string | null>(null);
+  const [showWalkProof, setShowWalkProof] = useState(false);
+  const [walkProofData, setWalkProofData] = useState<{ distance: number; duration: number; samples: { lat: number; lon: number; t: number }[]; suspicious: boolean } | null>(null);
   const [showVictory, setShowVictory] = useState(false);
   const [showShareCard, setShowShareCard] = useState(false);
   const [showRematchCard, setShowRematchCard] = useState(false);
@@ -104,10 +104,10 @@ export function ChallengeDetail({ challengeId }: ChallengeDetailProps) {
 
   useEffect(() => {
     setMounted(true);
-    // Load proof pic if exists
-    const savedPic = getProofPic(challengeId);
-    if (savedPic) {
-      setProofPicUrl(savedPic);
+    // Load walk proof if exists
+    const savedWalk = getWalkProof(challengeId);
+    if (savedWalk) {
+      setWalkProofData(savedWalk);
     }
   }, [challengeId]);
 
@@ -172,9 +172,9 @@ export function ChallengeDetail({ challengeId }: ChallengeDetailProps) {
   }, [challenge]);
 
   // Define handlers that use hooks before any conditional returns
-  const handleCameraCapture = useCallback((imageUrl: string) => {
-    setProofPicUrl(imageUrl);
-    setShowCamera(false);
+  const handleWalkProofSubmit = useCallback((walkData: { distance: number; duration: number; samples: { lat: number; lon: number; t: number }[]; suspicious: boolean }) => {
+    setWalkProofData(walkData);
+    setShowWalkProof(false);
     // Now mark as completed
     markCompleted(challengeId);
     // Record streak
@@ -214,12 +214,12 @@ export function ChallengeDetail({ challengeId }: ChallengeDetailProps) {
   };
 
   const handleComplete = () => {
-    // Open camera first for proof pic
-    setShowCamera(true);
+    // Open walk proof capture
+    setShowWalkProof(true);
   };
 
-  const handleSkipPhoto = () => {
-    setShowCamera(false);
+  const handleSkipProof = () => {
+    setShowWalkProof(false);
     markCompleted(challengeId);
     recordCompletion();
     fireConfetti();
@@ -482,7 +482,7 @@ export function ChallengeDetail({ challengeId }: ChallengeDetailProps) {
               </div>
               <h3 className="text-lg font-bold mb-2">Finished Your Run?</h3>
               <p className="text-stride-muted mb-4">
-                Take a proof pic and claim your share of the prize pool!
+                Submit your walk data to prove you completed the challenge!
               </p>
               
               {/* Streak Badge */}
@@ -507,8 +507,10 @@ export function ChallengeDetail({ challengeId }: ChallengeDetailProps) {
                   </>
                 ) : (
                   <>
-                    <span className="text-xl">📸</span>
-                    Take Proof Pic & Complete
+                    <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+                    </svg>
+                    Submit Walk Proof
                   </>
                 )}
               </button>
@@ -527,13 +529,13 @@ export function ChallengeDetail({ challengeId }: ChallengeDetailProps) {
                 Wait for the challenge to end, then settle to claim your winnings.
               </p>
               
-              {/* Show proof pic if taken */}
-              {proofPicUrl && (
+              {/* Show walk proof if recorded */}
+              {walkProofData && (
                 <div className="mt-4">
-                  <ProofPicDisplay 
+                  <WalkProofDisplay 
                     challengeId={challengeId} 
-                    imageUrl={proofPicUrl}
-                    className="max-w-xs mx-auto aspect-[3/4]"
+                    walkData={walkProofData}
+                    className="max-w-sm mx-auto"
                   />
                 </div>
               )}
@@ -887,22 +889,13 @@ export function ChallengeDetail({ challengeId }: ChallengeDetailProps) {
         </div>
       )}
 
-      {/* Camera Modal */}
-      {showCamera && (
-        <div className="fixed inset-0 z-50">
-          <ProofPicCamera
-            challengeId={challengeId}
-            onCapture={handleCameraCapture}
-            onClose={() => setShowCamera(false)}
-          />
-          {/* Skip photo option */}
-          <button
-            onClick={handleSkipPhoto}
-            className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 px-6 py-2 bg-white/10 hover:bg-white/20 rounded-full text-sm transition-colors"
-          >
-            Skip Photo
-          </button>
-        </div>
+      {/* Walk Proof Modal */}
+      {showWalkProof && (
+        <WalkProofCapture
+          challengeId={challengeId}
+          onSubmit={handleWalkProofSubmit}
+          onClose={() => setShowWalkProof(false)}
+        />
       )}
 
       {/* Victory Celebration Modal */}
