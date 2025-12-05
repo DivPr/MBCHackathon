@@ -5,9 +5,10 @@ import { useCreateGroup } from "@/hooks/useGroups";
 
 interface CreateGroupModalProps {
   onClose: () => void;
+  onSuccess?: () => void;
 }
 
-export function CreateGroupModal({ onClose }: CreateGroupModalProps) {
+export function CreateGroupModal({ onClose, onSuccess }: CreateGroupModalProps) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [isPrivate, setIsPrivate] = useState(false);
@@ -22,9 +23,10 @@ export function CreateGroupModal({ onClose }: CreateGroupModalProps) {
 
   useEffect(() => {
     if (isSuccess) {
+      onSuccess?.();
       setTimeout(() => onClose(), 1500);
     }
-  }, [isSuccess, onClose]);
+  }, [isSuccess, onClose, onSuccess]);
 
   const isProcessing = isPending || isConfirming;
 

@@ -15,8 +15,13 @@ export default function GroupsPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showJoinModal, setShowJoinModal] = useState(false);
   
-  const { data: groupCount, isLoading: loadingCount } = useGroupCount();
-  const { data: userGroupIds } = useUserGroups(address);
+  const { data: groupCount, isLoading: loadingCount, refetch: refetchGroupCount } = useGroupCount();
+  const { data: userGroupIds, refetch: refetchUserGroups } = useUserGroups(address);
+
+  const handleGroupCreated = () => {
+    refetchGroupCount();
+    refetchUserGroups();
+  };
 
   useEffect(() => {
     setMounted(true);
@@ -171,7 +176,10 @@ export default function GroupsPage() {
 
       {/* Modals */}
       {showCreateModal && (
-        <CreateGroupModal onClose={() => setShowCreateModal(false)} />
+        <CreateGroupModal 
+          onClose={() => setShowCreateModal(false)} 
+          onSuccess={handleGroupCreated}
+        />
       )}
       {showJoinModal && (
         <JoinGroupModal onClose={() => setShowJoinModal(false)} />

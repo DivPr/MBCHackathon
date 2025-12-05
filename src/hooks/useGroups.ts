@@ -10,6 +10,9 @@ export function useGroupCount() {
     address: STRIDE_GROUPS_ADDRESS,
     abi: STRIDE_GROUPS_ABI,
     functionName: "groupCount",
+    query: {
+      refetchInterval: 3000, // Refetch every 3 seconds
+    },
   });
 }
 
@@ -28,6 +31,9 @@ export function useGroupMembers(groupId: bigint) {
     abi: STRIDE_GROUPS_ABI,
     functionName: "getGroupMembers",
     args: [groupId],
+    query: {
+      refetchInterval: 3000, // Refetch every 3 seconds
+    },
   });
 }
 
@@ -37,6 +43,9 @@ export function useGroupChallenges(groupId: bigint) {
     abi: STRIDE_GROUPS_ABI,
     functionName: "getGroupChallenges",
     args: [groupId],
+    query: {
+      refetchInterval: 3000, // Refetch every 3 seconds
+    },
   });
 }
 
@@ -73,12 +82,18 @@ export function useLeaderboard(groupId: bigint) {
   });
 }
 
-export function useInviteCode(groupId: bigint) {
+export function useInviteCode(groupId: bigint, userAddress?: `0x${string}`, creatorAddress?: `0x${string}`) {
+  const isCreator = userAddress && creatorAddress && userAddress.toLowerCase() === creatorAddress.toLowerCase();
+  
   return useReadContract({
     address: STRIDE_GROUPS_ADDRESS,
     abi: STRIDE_GROUPS_ABI,
     functionName: "getInviteCode",
     args: [groupId],
+    account: userAddress,
+    query: {
+      enabled: !!isCreator, // Only fetch if user is the creator
+    },
   });
 }
 

@@ -323,7 +323,7 @@ export function ChallengeDetail({ challengeId }: ChallengeDetailProps) {
               <div>
                 <p className="text-xs text-stride-muted mb-1">Your Potential Winnings</p>
                 <p className="text-2xl font-bold gradient-text">
-                  ~{potentialWinnings.toFixed(4)} ETH
+                  {potentialWinnings.toFixed(4)} ETH
                 </p>
               </div>
               <div className="w-12 h-12 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-xl flex items-center justify-center">
@@ -578,7 +578,7 @@ export function ChallengeDetail({ challengeId }: ChallengeDetailProps) {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setShowCancelModal(false)} />
           <div className="relative w-full max-w-md bg-stride-gray border border-white/10 rounded-2xl shadow-2xl p-6">
-            <h3 className="text-xl font-bold mb-2">Cancel Challenge?</h3>
+            <h3 className="text-xl font-bold mb-2">End Challenge Options</h3>
             
             {canCreatorCancel ? (
               <>
@@ -603,14 +603,21 @@ export function ChallengeDetail({ challengeId }: ChallengeDetailProps) {
               </>
             ) : (
               <>
-                <p className="text-stride-muted mb-4">
-                  To cancel this challenge, all {participantCount} participants must vote to cancel. Stakes will be refunded to everyone.
+                {/* Info about early ending options */}
+                <div className="p-3 bg-blue-500/10 border border-blue-500/30 rounded-xl mb-4">
+                  <p className="text-xs text-blue-400">
+                    <strong>💡 Want to end early with payouts?</strong> If all participants have finished their runs, you can wait for the timer to expire and then settle. Only completers will get paid.
+                  </p>
+                </div>
+
+                <p className="text-stride-muted mb-4 text-sm">
+                  <strong className="text-red-400">Cancel & Refund:</strong> To cancel and refund everyone, all {participantCount} participants must vote. No one wins or loses - all stakes returned.
                 </p>
                 
                 {cancelVoteStatus && (
                   <div className="p-3 bg-stride-dark rounded-xl mb-4">
                     <div className="flex justify-between text-sm">
-                      <span className="text-stride-muted">Current votes</span>
+                      <span className="text-stride-muted">Cancel votes</span>
                       <span className="font-mono">{Number(cancelVoteStatus[0])}/{Number(cancelVoteStatus[1])}</span>
                     </div>
                     <div className="h-2 bg-white/10 rounded-full mt-2 overflow-hidden">
@@ -619,12 +626,15 @@ export function ChallengeDetail({ challengeId }: ChallengeDetailProps) {
                         style={{ width: `${(Number(cancelVoteStatus[0]) / Number(cancelVoteStatus[1])) * 100}%` }}
                       />
                     </div>
+                    <p className="text-xs text-stride-muted mt-2">
+                      {Number(cancelVoteStatus[1]) - Number(cancelVoteStatus[0])} more vote{Number(cancelVoteStatus[1]) - Number(cancelVoteStatus[0]) !== 1 ? 's' : ''} needed
+                    </p>
                   </div>
                 )}
 
                 {hasVotedCancel ? (
                   <div className="p-4 bg-green-500/10 border border-green-500/20 rounded-xl mb-4 text-center">
-                    <p className="text-green-400 text-sm">✓ You have already voted to cancel</p>
+                    <p className="text-green-400 text-sm">✓ You have voted to cancel</p>
                   </div>
                 ) : null}
 
@@ -641,7 +651,7 @@ export function ChallengeDetail({ challengeId }: ChallengeDetailProps) {
                       disabled={isVotingCancel || isVoteCancelConfirming}
                       className="flex-1 py-2.5 px-5 bg-red-500 hover:bg-red-600 text-white font-semibold rounded-xl transition-all"
                     >
-                      {isVotingCancel || isVoteCancelConfirming ? "Voting..." : "Vote to Cancel"}
+                      {isVotingCancel || isVoteCancelConfirming ? "Voting..." : "Vote to Cancel & Refund"}
                     </button>
                   )}
                 </div>

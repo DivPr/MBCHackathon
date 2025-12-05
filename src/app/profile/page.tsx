@@ -6,8 +6,139 @@ import { useAccount } from "wagmi";
 import { formatEther } from "viem";
 import { ConnectButton } from "@/components/ConnectButton";
 import { Navbar } from "@/components/Navbar";
-import { useUserStats } from "@/hooks/useChallenge";
+import { useUserStats, useChallengeCount, useChallenge, useHasJoined, useHasCompleted } from "@/hooks/useChallenge";
 import { useUserGroups, useGroup } from "@/hooks/useGroups";
+
+// Mini Challenge Card for profile display
+function MiniChallengeCard({ challengeId, userAddress }: { challengeId: bigint; userAddress?: `0x${string}` }) {
+  const { data: challenge, isLoading } = useChallenge(challengeId);
+  const { data: hasJoined } = useHasJoined(challengeId, userAddress);
+  const { data: hasCompleted } = useHasCompleted(challengeId, userAddress);
+
+  if (isLoading || !challenge || !hasJoined) return null;
+  
+  // Skip cancelled challenges
+  if (challenge.cancelled) return null;
+
+  const now = Math.floor(Date.now() / 1000);
+  const endTime = Number(challenge.endTime);
+  const isEnded = endTime < now;
+  const stakeEth = formatEther(challenge.stakeAmount);
+  
+  // Determine status
+  let status: "active" | "completed" | "settled" | "lost" = "active";
+  let statusColor = "text-blue-400 bg-blue-500/10 border-blue-500/30";
+  let statusText = "Active";
+  
+  if (challenge.settled) {
+    if (hasCompleted) {
+      status = "completed";
+      statusColor = "text-green-400 bg-green-500/10 border-green-500/30";
+      statusText = "Won";
+    } else {
+      status = "lost";
+      statusColor = "text-red-400 bg-red-500/10 border-red-500/30";
+      statusText = "Lost";
+    }
+  } else if (isEnded) {
+    statusColor = "text-yellow-400 bg-yellow-500/10 border-yellow-500/30";
+    statusText = hasCompleted ? "Finished" : "Ended";
+  } else if (hasCompleted) {
+    statusColor = "text-green-400 bg-green-500/10 border-green-500/30";
+    statusText = "Finished";
+  }
+
+  return (
+    <Link href={`/challenge/${challengeId}`}>
+      <div className="bg-white/5 hover:bg-white/10 rounded-xl p-4 transition-all cursor-pointer group border border-transparent hover:border-stride-purple/30">
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-10 h-10 bg-gradient-to-br from-stride-purple/30 to-pink-500/30 rounded-lg flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+              <svg className="w-5 h-5 text-stride-purple" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+            </div>
+            <div className="min-w-0">
+              <h4 className="font-medium text-sm truncate">{challenge.description || `Challenge #${challengeId}`}</h4>
+              <p className="text-xs text-stride-muted">
+                {stakeEth} ETH stake
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <span className={`text-xs font-medium px-2 py-1 rounded-full border ${statusColor}`}>
+              {statusText}
+            </span>
+            <svg className="w-4 h-4 text-stride-muted group-hover:text-stride-purple transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
+          </div>
+        </div>
+      </div>
+    </Link>
+  );
+}
+
+// User challenges list component
+function UserChallengesList({ userAddress, filter }: { userAddress?: `0x${string}`; filter: "active" | "past" | "all" }) {
+  const { data: challengeCount } = useChallengeCount();
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    // Simple loading state based on challengeCount being available
+    if (challengeCount !== undefined) {
+      setIsLoading(false);
+    }
+  }, [challengeCount]);
+
+  if (isLoading || challengeCount === undefined) {
+    return (
+      <div className="space-y-3">
+        {[1, 2, 3].map((i) => (
+          <div key={i} className="bg-white/5 rounded-xl p-4 animate-pulse">
+            <div className="h-4 bg-white/5 rounded w-2/3 mb-2" />
+            <div className="h-3 bg-white/5 rounded w-1/2" />
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  const count = Number(challengeCount);
+  if (count === 0) {
+    return (
+      <div className="text-center py-12">
+        <div className="w-16 h-16 bg-gradient-to-br from-stride-purple/20 to-pink-500/20 rounded-2xl flex items-center justify-center mx-auto mb-4">
+          <svg className="w-8 h-8 text-stride-purple" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+          </svg>
+        </div>
+        <p className="text-stride-muted mb-4">No challenges found</p>
+        <Link href="/groups" className="btn-primary px-6 py-2 inline-flex items-center gap-2">
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+          </svg>
+          Join a Group to Start
+        </Link>
+      </div>
+    );
+  }
+
+  // Generate challenge IDs (newest first)
+  const challengeIds = Array.from({ length: count }, (_, i) => BigInt(count - 1 - i));
+
+  return (
+    <div className="space-y-3">
+      {challengeIds.map((id) => (
+        <MiniChallengeCard 
+          key={id.toString()} 
+          challengeId={id} 
+          userAddress={userAddress}
+        />
+      ))}
+    </div>
+  );
+}
 
 // Mini Group Card for profile display
 function MiniGroupCard({ groupId }: { groupId: bigint }) {
@@ -113,7 +244,7 @@ function AnimatedStat({ value, label, color }: { value: number | string; label: 
 export default function ProfilePage() {
   const { address, isConnected } = useAccount();
   const [mounted, setMounted] = useState(false);
-  const [activeTab, setActiveTab] = useState<"overview" | "groups" | "achievements">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "challenges" | "groups" | "achievements">("overview");
   
   const { data: stats, isLoading: loadingStats } = useUserStats(address);
   const { data: userGroups, isLoading: loadingGroups } = useUserGroups(address);
@@ -319,9 +450,10 @@ export default function ProfilePage() {
             </div>
 
             {/* Tabs */}
-            <div className="flex gap-2 mb-6 border-b border-white/10 pb-4">
+            <div className="flex gap-2 mb-6 border-b border-white/10 pb-4 overflow-x-auto">
               {[
                 { id: "overview", label: "Overview", icon: "M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" },
+                { id: "challenges", label: "My Challenges", icon: "M13 10V3L4 14h7v7l9-11h-7z" },
                 { id: "groups", label: "My Groups", icon: "M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" },
                 { id: "achievements", label: "Achievements", icon: "M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" },
               ].map((tab) => (
@@ -424,6 +556,25 @@ export default function ProfilePage() {
                   </div>
                 </div>
               </>
+            )}
+
+            {activeTab === "challenges" && (
+              <div className="card border-white/10">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="font-bold text-lg flex items-center gap-2">
+                    <div className="w-8 h-8 bg-gradient-to-br from-stride-purple to-pink-500 rounded-lg flex items-center justify-center">
+                      <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                      </svg>
+                    </div>
+                    My Challenges
+                  </h3>
+                </div>
+                <p className="text-xs text-stride-muted mb-4">
+                  Challenges you&apos;ve participated in. Cancelled challenges are not shown and don&apos;t count toward stats.
+                </p>
+                <UserChallengesList userAddress={address} filter="all" />
+              </div>
             )}
 
             {activeTab === "groups" && (
