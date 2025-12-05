@@ -5,6 +5,8 @@ import { useCreateChallenge } from "@/hooks/useChallenge";
 
 interface CreateChallengeModalProps {
   onClose: () => void;
+  groupId: bigint;
+  groupName: string;
 }
 
 const DURATION_OPTIONS = [
@@ -16,7 +18,7 @@ const DURATION_OPTIONS = [
 
 const STAKE_OPTIONS = ["0.0001", "0.0005", "0.001", "0.005"];
 
-export function CreateChallengeModal({ onClose }: CreateChallengeModalProps) {
+export function CreateChallengeModal({ onClose, groupId, groupName }: CreateChallengeModalProps) {
   const [description, setDescription] = useState("");
   const [duration, setDuration] = useState(86400);
   const [stakeAmount, setStakeAmount] = useState("0.0001");
@@ -37,7 +39,8 @@ export function CreateChallengeModal({ onClose }: CreateChallengeModalProps) {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const stake = customStake || stakeAmount;
-    createChallenge(stake, duration, description);
+    // Always pass the groupId + 1 (since 0 means no group in the contract)
+    createChallenge(stake, duration, description, Number(groupId) + 1);
   };
 
   const isProcessing = isPending || isConfirming;
@@ -61,7 +64,10 @@ export function CreateChallengeModal({ onClose }: CreateChallengeModalProps) {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
               </svg>
             </div>
-            <h2 className="text-xl font-bold">Create Challenge</h2>
+            <div>
+              <h2 className="text-xl font-bold">Create Challenge</h2>
+              <p className="text-xs text-stride-muted">in {groupName}</p>
+            </div>
           </div>
           <button
             onClick={onClose}
@@ -168,6 +174,10 @@ export function CreateChallengeModal({ onClose }: CreateChallengeModalProps) {
                 Summary
               </h4>
               <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-stride-muted">Group</span>
+                  <span className="font-medium">{groupName}</span>
+                </div>
                 <div className="flex justify-between">
                   <span className="text-stride-muted">Your stake</span>
                   <span className="font-medium text-stride-purple">{finalStake} ETH</span>

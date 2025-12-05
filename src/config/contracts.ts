@@ -1,9 +1,9 @@
 import { Address } from "viem";
 
-// Contract address on Base Sepolia - update after deployment
+// Contract address - update after deployment
 export const STRIDE_CHALLENGE_ADDRESS: Address =
   ((process.env.NEXT_PUBLIC_CONTRACT_ADDRESS?.trim()) as Address) ||
-  "0xd12391513A8E7934a289316C5266cFD2CC26aAd4";
+  "0x0165878A594ca255338adfa4d48449f69242Eb8F";
 
 // Check if contract is deployed
 export const isContractDeployed = 
@@ -21,6 +21,7 @@ export const STRIDE_CHALLENGE_ABI = [
       { name: "stakeAmount", type: "uint256", indexed: false },
       { name: "endTime", type: "uint256", indexed: false },
       { name: "description", type: "string", indexed: false },
+      { name: "groupId", type: "uint256", indexed: false },
     ],
   },
   {
@@ -48,6 +49,24 @@ export const STRIDE_CHALLENGE_ABI = [
       { name: "prizePerWinner", type: "uint256", indexed: false },
     ],
   },
+  {
+    type: "event",
+    name: "ChallengeCancelled",
+    inputs: [
+      { name: "challengeId", type: "uint256", indexed: true },
+      { name: "reason", type: "string", indexed: false },
+    ],
+  },
+  {
+    type: "event",
+    name: "CancelVoteCast",
+    inputs: [
+      { name: "challengeId", type: "uint256", indexed: true },
+      { name: "voter", type: "address", indexed: true },
+      { name: "totalVotes", type: "uint256", indexed: false },
+      { name: "requiredVotes", type: "uint256", indexed: false },
+    ],
+  },
 
   // Read functions
   {
@@ -72,7 +91,9 @@ export const STRIDE_CHALLENGE_ABI = [
           { name: "endTime", type: "uint256" },
           { name: "description", type: "string" },
           { name: "settled", type: "bool" },
+          { name: "cancelled", type: "bool" },
           { name: "totalPool", type: "uint256" },
+          { name: "groupId", type: "uint256" },
         ],
       },
     ],
@@ -112,6 +133,47 @@ export const STRIDE_CHALLENGE_ABI = [
     outputs: [{ name: "", type: "address[]" }],
     stateMutability: "view",
   },
+  {
+    type: "function",
+    name: "hasVotedCancel",
+    inputs: [
+      { name: "challengeId", type: "uint256" },
+      { name: "user", type: "address" },
+    ],
+    outputs: [{ name: "", type: "bool" }],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "getCancelVoteStatus",
+    inputs: [{ name: "challengeId", type: "uint256" }],
+    outputs: [
+      { name: "votes", type: "uint256" },
+      { name: "required", type: "uint256" },
+    ],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "getUserStats",
+    inputs: [{ name: "user", type: "address" }],
+    outputs: [
+      {
+        name: "",
+        type: "tuple",
+        components: [
+          { name: "challengesCreated", type: "uint256" },
+          { name: "challengesJoined", type: "uint256" },
+          { name: "challengesCompleted", type: "uint256" },
+          { name: "challengesWon", type: "uint256" },
+          { name: "totalStaked", type: "uint256" },
+          { name: "totalWon", type: "uint256" },
+          { name: "totalLost", type: "uint256" },
+        ],
+      },
+    ],
+    stateMutability: "view",
+  },
 
   // Write functions
   {
@@ -121,6 +183,18 @@ export const STRIDE_CHALLENGE_ABI = [
       { name: "stakeAmount", type: "uint256" },
       { name: "duration", type: "uint256" },
       { name: "description", type: "string" },
+    ],
+    outputs: [{ name: "challengeId", type: "uint256" }],
+    stateMutability: "payable",
+  },
+  {
+    type: "function",
+    name: "createChallenge",
+    inputs: [
+      { name: "stakeAmount", type: "uint256" },
+      { name: "duration", type: "uint256" },
+      { name: "description", type: "string" },
+      { name: "groupId", type: "uint256" },
     ],
     outputs: [{ name: "challengeId", type: "uint256" }],
     stateMutability: "payable",
@@ -142,6 +216,20 @@ export const STRIDE_CHALLENGE_ABI = [
   {
     type: "function",
     name: "settleChallenge",
+    inputs: [{ name: "challengeId", type: "uint256" }],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
+    name: "voteCancelChallenge",
+    inputs: [{ name: "challengeId", type: "uint256" }],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
+    name: "creatorCancelChallenge",
     inputs: [{ name: "challengeId", type: "uint256" }],
     outputs: [],
     stateMutability: "nonpayable",

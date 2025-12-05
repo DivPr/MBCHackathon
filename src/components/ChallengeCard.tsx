@@ -10,7 +10,7 @@ interface ChallengeCardProps {
 }
 
 export function ChallengeCard({ challengeId }: ChallengeCardProps) {
-  const { data: challenge, isLoading } = useChallenge(challengeId);
+  const { data: challenge, isLoading, error } = useChallenge(challengeId);
   const { data: participants } = useParticipants(challengeId);
   const { data: completers } = useCompleters(challengeId);
   const [timeLeft, setTimeLeft] = useState("");
@@ -51,7 +51,12 @@ export function ChallengeCard({ challengeId }: ChallengeCardProps) {
     return () => clearInterval(interval);
   }, [challenge, mounted]);
 
-  if (!mounted || isLoading || !challenge) {
+  // Show nothing if challenge doesn't exist (cancelled or error)
+  if (error || (mounted && !isLoading && !challenge)) {
+    return null;
+  }
+
+  if (!mounted || isLoading) {
     return (
       <div className="card animate-pulse border-white/10">
         <div className="flex items-start gap-3 mb-4">
@@ -68,6 +73,11 @@ export function ChallengeCard({ challengeId }: ChallengeCardProps) {
         </div>
       </div>
     );
+  }
+  
+  // Skip cancelled challenges
+  if (challenge.cancelled) {
+    return null;
   }
 
   const endTime = new Date(Number(challenge.endTime) * 1000);

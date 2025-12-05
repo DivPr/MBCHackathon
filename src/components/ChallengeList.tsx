@@ -101,8 +101,8 @@ export function ChallengeList() {
         {challengeIds.map((id, index) => (
           <div 
             key={id.toString()} 
-            className="animate-slide-up opacity-0"
-            style={{ animationDelay: `${index * 50}ms`, animationFillMode: 'forwards' }}
+            className="animate-slide-up"
+            style={{ animationDelay: `${index * 50}ms` }}
           >
             <ChallengeCard challengeId={id} />
           </div>

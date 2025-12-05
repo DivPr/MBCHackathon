@@ -10,6 +10,10 @@ import {
   useJoinChallenge,
   useMarkCompleted,
   useSettleChallenge,
+  useVoteCancelChallenge,
+  useCreatorCancelChallenge,
+  useHasVotedCancel,
+  useCancelVoteStatus,
 } from "@/hooks/useChallenge";
 import { formatEther } from "viem";
 import { useState, useEffect } from "react";
@@ -26,6 +30,8 @@ export function ChallengeDetail({ challengeId }: ChallengeDetailProps) {
   const { data: hasJoined, refetch: refetchJoined } = useHasJoined(challengeId, address);
   const { data: hasCompleted, refetch: refetchCompleted } = useHasCompleted(challengeId, address);
   const { data: completers, refetch: refetchCompleters } = useCompleters(challengeId);
+  const { data: hasVotedCancel } = useHasVotedCancel(challengeId, address);
+  const { data: cancelVoteStatus, refetch: refetchCancelVotes } = useCancelVoteStatus(challengeId);
 
   const {
     joinChallenge,
@@ -48,7 +54,22 @@ export function ChallengeDetail({ challengeId }: ChallengeDetailProps) {
     isSuccess: settleSuccess,
   } = useSettleChallenge();
 
+  const {
+    voteCancelChallenge,
+    isPending: isVotingCancel,
+    isConfirming: isVoteCancelConfirming,
+    isSuccess: voteCancelSuccess,
+  } = useVoteCancelChallenge();
+
+  const {
+    creatorCancelChallenge,
+    isPending: isCreatorCanceling,
+    isConfirming: isCreatorCancelConfirming,
+    isSuccess: creatorCancelSuccess,
+  } = useCreatorCancelChallenge();
+
   const [showShareModal, setShowShareModal] = useState(false);
+  const [showCancelModal, setShowCancelModal] = useState(false);
   const [timeLeft, setTimeLeft] = useState("");
   const [mounted, setMounted] = useState(false);
 
@@ -57,16 +78,17 @@ export function ChallengeDetail({ challengeId }: ChallengeDetailProps) {
   }, []);
 
   useEffect(() => {
-    if (joinSuccess || markSuccess || settleSuccess) {
+    if (joinSuccess || markSuccess || settleSuccess || voteCancelSuccess || creatorCancelSuccess) {
       setTimeout(() => {
         refetch();
         refetchParticipants();
         refetchJoined();
         refetchCompleted();
         refetchCompleters();
+        refetchCancelVotes();
       }, 2000);
     }
-  }, [joinSuccess, markSuccess, settleSuccess, refetch, refetchParticipants, refetchJoined, refetchCompleted, refetchCompleters]);
+  }, [joinSuccess, markSuccess, settleSuccess, voteCancelSuccess, creatorCancelSuccess, refetch, refetchParticipants, refetchJoined, refetchCompleted, refetchCompleters, refetchCancelVotes]);
 
   useEffect(() => {
     if (!challenge) return;
@@ -122,6 +144,9 @@ export function ChallengeDetail({ challengeId }: ChallengeDetailProps) {
   const poolEth = formatEther(challenge.totalPool);
   const participantCount = participants?.length || 0;
   const completerCount = completers?.length || 0;
+  const isCancelled = challenge.cancelled;
+  const isCreator = address?.toLowerCase() === challenge.creator.toLowerCase();
+  const canCreatorCancel = isCreator && participantCount === 1 && !challenge.settled && !isCancelled;
 
   const handleJoin = () => {
     joinChallenge(challengeId, challenge.stakeAmount);
@@ -135,13 +160,43 @@ export function ChallengeDetail({ challengeId }: ChallengeDetailProps) {
     settleChallenge(challengeId);
   };
 
-  const canJoin = !hasJoined && !isEnded && !challenge.settled;
-  const canComplete = hasJoined && !hasCompleted && !isEnded && !challenge.settled;
-  const canSettle = isEnded && !challenge.settled;
+  const handleVoteCancel = () => {
+    voteCancelChallenge(challengeId);
+    setShowCancelModal(false);
+  };
+
+  const handleCreatorCancel = () => {
+    creatorCancelChallenge(challengeId);
+    setShowCancelModal(false);
+  };
+
+  const canJoin = !hasJoined && !isEnded && !challenge.settled && !isCancelled;
+  const canComplete = hasJoined && !hasCompleted && !isEnded && !challenge.settled && !isCancelled;
+  const canSettle = isEnded && !challenge.settled && !isCancelled;
+  const canVoteCancel = hasJoined && !hasVotedCancel && !challenge.settled && !isCancelled;
 
   const potentialWinnings = completerCount > 0 
     ? Number(poolEth) / (completerCount + (hasJoined && !hasCompleted ? 1 : 0))
     : Number(poolEth);
+
+  // Cancelled state
+  if (isCancelled) {
+    return (
+      <div className="space-y-6">
+        <div className="card border-red-500/30 text-center bg-red-500/5">
+          <div className="w-20 h-20 bg-red-500/20 rounded-2xl flex items-center justify-center mx-auto mb-4">
+            <svg className="w-10 h-10 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </div>
+          <h2 className="text-xl font-bold mb-2 text-red-400">Challenge Cancelled</h2>
+          <p className="text-stride-muted">
+            This challenge was cancelled and all participants have been refunded.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -180,7 +235,7 @@ export function ChallengeDetail({ challengeId }: ChallengeDetailProps) {
           </div>
         </div>
 
-        {/* Title & Share */}
+        {/* Title & Actions */}
         <div className="flex items-start justify-between mb-6">
           <div>
             <h1 className="text-2xl md:text-3xl font-bold mb-2">
@@ -191,18 +246,51 @@ export function ChallengeDetail({ challengeId }: ChallengeDetailProps) {
               {challenge.creator.slice(0, 8)}...{challenge.creator.slice(-6)}
             </p>
           </div>
-          {!challenge.settled && (
-            <button
-              onClick={() => setShowShareModal(true)}
-              className="p-3 bg-stride-dark border border-white/10 hover:border-stride-purple/50 rounded-xl transition-colors"
-              title="Share Challenge"
-            >
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
-              </svg>
-            </button>
-          )}
+          <div className="flex gap-2">
+            {!challenge.settled && hasJoined && (
+              <button
+                onClick={() => setShowCancelModal(true)}
+                className="p-3 bg-stride-dark border border-white/10 hover:border-red-500/50 rounded-xl transition-colors text-stride-muted hover:text-red-400"
+                title="Cancel Challenge"
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            )}
+            {!challenge.settled && (
+              <button
+                onClick={() => setShowShareModal(true)}
+                className="p-3 bg-stride-dark border border-white/10 hover:border-stride-purple/50 rounded-xl transition-colors"
+                title="Share Challenge"
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+                </svg>
+              </button>
+            )}
+          </div>
         </div>
+
+        {/* Cancel Vote Status */}
+        {cancelVoteStatus && Number(cancelVoteStatus[0]) > 0 && !challenge.settled && (
+          <div className="p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-xl mb-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <svg className="w-5 h-5 text-yellow-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+                <span className="text-sm text-yellow-400 font-medium">Cancel vote in progress</span>
+              </div>
+              <span className="text-sm font-mono text-yellow-400">
+                {Number(cancelVoteStatus[0])}/{Number(cancelVoteStatus[1])} votes
+              </span>
+            </div>
+            <p className="text-xs text-stride-muted mt-2">
+              All participants must vote to cancel. Stakes will be refunded.
+            </p>
+          </div>
+        )}
 
         {/* Stats Grid */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
@@ -419,7 +507,7 @@ export function ChallengeDetail({ challengeId }: ChallengeDetailProps) {
             {participants.map((participant: `0x${string}`, index: number) => {
               const isCompleter = completers?.includes(participant);
               const isCurrentUser = participant.toLowerCase() === address?.toLowerCase();
-              const isCreator = participant.toLowerCase() === challenge.creator.toLowerCase();
+              const isParticipantCreator = participant.toLowerCase() === challenge.creator.toLowerCase();
 
               return (
                 <div
@@ -439,7 +527,7 @@ export function ChallengeDetail({ challengeId }: ChallengeDetailProps) {
                       }`}>
                         {isCompleter ? "✓" : `#${index + 1}`}
                       </div>
-                      {isCreator && (
+                      {isParticipantCreator && (
                         <div className="absolute -top-1 -right-1 w-5 h-5 bg-yellow-400 rounded-full flex items-center justify-center text-[10px] border-2 border-stride-gray">
                           👑
                         </div>
@@ -453,7 +541,7 @@ export function ChallengeDetail({ challengeId }: ChallengeDetailProps) {
                         {isCurrentUser && (
                           <span className="text-xs text-stride-purple font-medium">You</span>
                         )}
-                        {isCreator && !isCurrentUser && (
+                        {isParticipantCreator && !isCurrentUser && (
                           <span className="text-xs text-yellow-400">Creator</span>
                         )}
                       </div>
@@ -483,6 +571,84 @@ export function ChallengeDetail({ challengeId }: ChallengeDetailProps) {
           stakeAmount={stakeEth}
           onClose={() => setShowShareModal(false)}
         />
+      )}
+
+      {/* Cancel Modal */}
+      {showCancelModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setShowCancelModal(false)} />
+          <div className="relative w-full max-w-md bg-stride-gray border border-white/10 rounded-2xl shadow-2xl p-6">
+            <h3 className="text-xl font-bold mb-2">Cancel Challenge?</h3>
+            
+            {canCreatorCancel ? (
+              <>
+                <p className="text-stride-muted mb-6">
+                  As the only participant, you can cancel this challenge and get your stake refunded immediately.
+                </p>
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setShowCancelModal(false)}
+                    className="btn-secondary flex-1"
+                  >
+                    Keep Challenge
+                  </button>
+                  <button
+                    onClick={handleCreatorCancel}
+                    disabled={isCreatorCanceling || isCreatorCancelConfirming}
+                    className="flex-1 py-2.5 px-5 bg-red-500 hover:bg-red-600 text-white font-semibold rounded-xl transition-all"
+                  >
+                    {isCreatorCanceling || isCreatorCancelConfirming ? "Cancelling..." : "Cancel & Refund"}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <p className="text-stride-muted mb-4">
+                  To cancel this challenge, all {participantCount} participants must vote to cancel. Stakes will be refunded to everyone.
+                </p>
+                
+                {cancelVoteStatus && (
+                  <div className="p-3 bg-stride-dark rounded-xl mb-4">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-stride-muted">Current votes</span>
+                      <span className="font-mono">{Number(cancelVoteStatus[0])}/{Number(cancelVoteStatus[1])}</span>
+                    </div>
+                    <div className="h-2 bg-white/10 rounded-full mt-2 overflow-hidden">
+                      <div 
+                        className="h-full bg-red-500 transition-all"
+                        style={{ width: `${(Number(cancelVoteStatus[0]) / Number(cancelVoteStatus[1])) * 100}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {hasVotedCancel ? (
+                  <div className="p-4 bg-green-500/10 border border-green-500/20 rounded-xl mb-4 text-center">
+                    <p className="text-green-400 text-sm">✓ You have already voted to cancel</p>
+                  </div>
+                ) : null}
+
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setShowCancelModal(false)}
+                    className="btn-secondary flex-1"
+                  >
+                    Close
+                  </button>
+                  {canVoteCancel && (
+                    <button
+                      onClick={handleVoteCancel}
+                      disabled={isVotingCancel || isVoteCancelConfirming}
+                      className="flex-1 py-2.5 px-5 bg-red-500 hover:bg-red-600 text-white font-semibold rounded-xl transition-all"
+                    >
+                      {isVotingCancel || isVoteCancelConfirming ? "Voting..." : "Vote to Cancel"}
+                    </button>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
       )}
     </div>
   );

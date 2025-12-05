@@ -17,7 +17,19 @@ contract StrideChallengeManager {
         uint256 endTime;
         string description;
         bool settled;
+        bool cancelled;
         uint256 totalPool;
+        uint256 groupId;        // 0 = no group, otherwise group ID + 1
+    }
+
+    struct UserStats {
+        uint256 challengesCreated;
+        uint256 challengesJoined;
+        uint256 challengesCompleted;
+        uint256 challengesWon;      // Challenges where user got payout
+        uint256 totalStaked;
+        uint256 totalWon;
+        uint256 totalLost;
     }
 
     // ============ State Variables ============
@@ -39,6 +51,15 @@ contract StrideChallengeManager {
     // Challenge ID => list of completers
     mapping(uint256 => address[]) private completers;
 
+    // Challenge ID => address => voted to cancel
+    mapping(uint256 => mapping(address => bool)) private cancelVotes;
+    
+    // Challenge ID => number of cancel votes
+    mapping(uint256 => uint256) private cancelVoteCount;
+
+    // User stats tracking
+    mapping(address => UserStats) public userStats;
+
     // ============ Events ============
     
     event ChallengeCreated(
@@ -46,7 +67,8 @@ contract StrideChallengeManager {
         address indexed creator,
         uint256 stakeAmount,
         uint256 endTime,
-        string description
+        string description,
+        uint256 groupId
     );
     
     event ParticipantJoined(
@@ -65,6 +87,18 @@ contract StrideChallengeManager {
         uint256 prizePerWinner
     );
 
+    event ChallengeCancelled(
+        uint256 indexed challengeId,
+        string reason
+    );
+
+    event CancelVoteCast(
+        uint256 indexed challengeId,
+        address indexed voter,
+        uint256 totalVotes,
+        uint256 requiredVotes
+    );
+
     // ============ Errors ============
     
     error InvalidStakeAmount();
@@ -76,8 +110,12 @@ contract StrideChallengeManager {
     error NotJoined();
     error AlreadyCompleted();
     error AlreadySettled();
+    error AlreadyCancelled();
     error IncorrectStakeAmount();
     error TransferFailed();
+    error NotCreator();
+    error AlreadyVotedCancel();
+    error ChallengeHasParticipants();
 
     // ============ External Functions ============
     
@@ -86,12 +124,14 @@ contract StrideChallengeManager {
      * @param stakeAmount The amount each participant must stake (in wei)
      * @param duration How long the challenge lasts (in seconds)
      * @param description A description of the challenge (e.g., "5K run")
+     * @param groupId Optional group ID (0 for no group)
      * @return challengeId The ID of the newly created challenge
      */
     function createChallenge(
         uint256 stakeAmount,
         uint256 duration,
-        string calldata description
+        string calldata description,
+        uint256 groupId
     ) external payable returns (uint256 challengeId) {
         if (stakeAmount == 0) revert InvalidStakeAmount();
         if (duration == 0) revert InvalidDuration();
@@ -107,19 +147,74 @@ contract StrideChallengeManager {
             endTime: endTime,
             description: description,
             settled: false,
-            totalPool: stakeAmount
+            cancelled: false,
+            totalPool: stakeAmount,
+            groupId: groupId
         });
 
         participants[challengeId].push(msg.sender);
         hasJoinedMapping[challengeId][msg.sender] = true;
+
+        // Update user stats
+        userStats[msg.sender].challengesCreated++;
+        userStats[msg.sender].challengesJoined++;
+        userStats[msg.sender].totalStaked += stakeAmount;
 
         emit ChallengeCreated(
             challengeId,
             msg.sender,
             stakeAmount,
             endTime,
-            description
+            description,
+            groupId
         );
+    }
+
+    /**
+     * @notice Create challenge (backward compatible - no group)
+     */
+    function createChallenge(
+        uint256 stakeAmount,
+        uint256 duration,
+        string calldata description
+    ) external payable returns (uint256) {
+        if (stakeAmount == 0) revert InvalidStakeAmount();
+        if (duration == 0) revert InvalidDuration();
+        if (msg.value != stakeAmount) revert IncorrectStakeAmount();
+
+        uint256 challengeId = challengeCount++;
+        uint256 endTime = block.timestamp + duration;
+
+        challenges[challengeId] = Challenge({
+            id: challengeId,
+            creator: msg.sender,
+            stakeAmount: stakeAmount,
+            endTime: endTime,
+            description: description,
+            settled: false,
+            cancelled: false,
+            totalPool: stakeAmount,
+            groupId: 0
+        });
+
+        participants[challengeId].push(msg.sender);
+        hasJoinedMapping[challengeId][msg.sender] = true;
+
+        // Update user stats
+        userStats[msg.sender].challengesCreated++;
+        userStats[msg.sender].challengesJoined++;
+        userStats[msg.sender].totalStaked += stakeAmount;
+
+        emit ChallengeCreated(
+            challengeId,
+            msg.sender,
+            stakeAmount,
+            endTime,
+            description,
+            0
+        );
+
+        return challengeId;
     }
 
     /**
@@ -130,6 +225,7 @@ contract StrideChallengeManager {
         Challenge storage challenge = challenges[challengeId];
         
         if (challenge.endTime == 0) revert ChallengeNotFound();
+        if (challenge.cancelled) revert AlreadyCancelled();
         if (block.timestamp >= challenge.endTime) revert ChallengeEnded();
         if (hasJoinedMapping[challengeId][msg.sender]) revert AlreadyJoined();
         if (msg.value != challenge.stakeAmount) revert IncorrectStakeAmount();
@@ -137,6 +233,10 @@ contract StrideChallengeManager {
         participants[challengeId].push(msg.sender);
         hasJoinedMapping[challengeId][msg.sender] = true;
         challenge.totalPool += msg.value;
+
+        // Update user stats
+        userStats[msg.sender].challengesJoined++;
+        userStats[msg.sender].totalStaked += msg.value;
 
         emit ParticipantJoined(challengeId, msg.sender);
     }
@@ -149,6 +249,7 @@ contract StrideChallengeManager {
         Challenge storage challenge = challenges[challengeId];
         
         if (challenge.endTime == 0) revert ChallengeNotFound();
+        if (challenge.cancelled) revert AlreadyCancelled();
         if (block.timestamp >= challenge.endTime) revert ChallengeEnded();
         if (!hasJoinedMapping[challengeId][msg.sender]) revert NotJoined();
         if (hasCompletedMapping[challengeId][msg.sender]) revert AlreadyCompleted();
@@ -156,7 +257,88 @@ contract StrideChallengeManager {
         hasCompletedMapping[challengeId][msg.sender] = true;
         completers[challengeId].push(msg.sender);
 
+        // Update user stats
+        userStats[msg.sender].challengesCompleted++;
+
         emit CompletionMarked(challengeId, msg.sender);
+    }
+
+    /**
+     * @notice Vote to cancel a challenge (requires all participants to agree)
+     * @param challengeId The ID of the challenge
+     */
+    function voteCancelChallenge(uint256 challengeId) external {
+        Challenge storage challenge = challenges[challengeId];
+        
+        if (challenge.endTime == 0) revert ChallengeNotFound();
+        if (challenge.settled) revert AlreadySettled();
+        if (challenge.cancelled) revert AlreadyCancelled();
+        if (!hasJoinedMapping[challengeId][msg.sender]) revert NotJoined();
+        if (cancelVotes[challengeId][msg.sender]) revert AlreadyVotedCancel();
+
+        cancelVotes[challengeId][msg.sender] = true;
+        cancelVoteCount[challengeId]++;
+
+        uint256 totalParticipants = participants[challengeId].length;
+        uint256 votesNeeded = totalParticipants; // All must agree
+
+        emit CancelVoteCast(
+            challengeId, 
+            msg.sender, 
+            cancelVoteCount[challengeId], 
+            votesNeeded
+        );
+
+        // If all participants voted, cancel the challenge
+        if (cancelVoteCount[challengeId] >= totalParticipants) {
+            _cancelChallenge(challengeId, "All participants agreed to cancel");
+        }
+    }
+
+    /**
+     * @notice Creator can cancel if they're the only participant
+     * @param challengeId The ID of the challenge
+     */
+    function creatorCancelChallenge(uint256 challengeId) external {
+        Challenge storage challenge = challenges[challengeId];
+        
+        if (challenge.endTime == 0) revert ChallengeNotFound();
+        if (challenge.creator != msg.sender) revert NotCreator();
+        if (challenge.settled) revert AlreadySettled();
+        if (challenge.cancelled) revert AlreadyCancelled();
+        
+        // Creator can only cancel if they're the only participant
+        if (participants[challengeId].length > 1) revert ChallengeHasParticipants();
+
+        _cancelChallenge(challengeId, "Cancelled by creator");
+    }
+
+    /**
+     * @notice Internal function to cancel and refund
+     */
+    function _cancelChallenge(uint256 challengeId, string memory reason) internal {
+        Challenge storage challenge = challenges[challengeId];
+        challenge.cancelled = true;
+
+        // Refund all participants
+        address[] memory allParticipants = participants[challengeId];
+        uint256 refundAmount = challenge.stakeAmount;
+
+        for (uint256 i = 0; i < allParticipants.length; i++) {
+            address participant = allParticipants[i];
+            
+            // Update stats - remove the stake from total
+            userStats[participant].totalStaked -= refundAmount;
+            userStats[participant].challengesJoined--;
+            if (participant == challenge.creator) {
+                userStats[participant].challengesCreated--;
+            }
+
+            (bool success, ) = participant.call{value: refundAmount}("");
+            if (!success) revert TransferFailed();
+        }
+
+        emit ChallengeCancelled(challengeId, reason);
     }
 
     /**
@@ -168,12 +350,14 @@ contract StrideChallengeManager {
         Challenge storage challenge = challenges[challengeId];
         
         if (challenge.endTime == 0) revert ChallengeNotFound();
+        if (challenge.cancelled) revert AlreadyCancelled();
         if (block.timestamp < challenge.endTime) revert ChallengeNotEnded();
         if (challenge.settled) revert AlreadySettled();
 
         challenge.settled = true;
         
         address[] memory winners = completers[challengeId];
+        address[] memory allParticipants = participants[challengeId];
         uint256 winnersCount = winners.length;
         uint256 totalPool = challenge.totalPool;
         uint256 prizePerWinner;
@@ -183,8 +367,21 @@ contract StrideChallengeManager {
             prizePerWinner = totalPool / winnersCount;
             
             for (uint256 i = 0; i < winnersCount; i++) {
-                (bool success, ) = winners[i].call{value: prizePerWinner}("");
+                address winner = winners[i];
+                
+                // Update winner stats
+                userStats[winner].challengesWon++;
+                userStats[winner].totalWon += prizePerWinner;
+
+                (bool success, ) = winner.call{value: prizePerWinner}("");
                 if (!success) revert TransferFailed();
+            }
+
+            // Update loser stats (participants who didn't complete)
+            for (uint256 i = 0; i < allParticipants.length; i++) {
+                if (!hasCompletedMapping[challengeId][allParticipants[i]]) {
+                    userStats[allParticipants[i]].totalLost += challenge.stakeAmount;
+                }
             }
             
             // Handle dust (any remainder due to division)
@@ -195,7 +392,6 @@ contract StrideChallengeManager {
             }
         } else {
             // No completers - refund everyone
-            address[] memory allParticipants = participants[challengeId];
             uint256 refundAmount = challenge.stakeAmount;
             
             for (uint256 i = 0; i < allParticipants.length; i++) {
@@ -211,8 +407,6 @@ contract StrideChallengeManager {
     
     /**
      * @notice Get challenge details
-     * @param challengeId The ID of the challenge
-     * @return The challenge struct
      */
     function getChallenge(uint256 challengeId) external view returns (Challenge memory) {
         return challenges[challengeId];
@@ -220,8 +414,6 @@ contract StrideChallengeManager {
 
     /**
      * @notice Get all participants of a challenge
-     * @param challengeId The ID of the challenge
-     * @return Array of participant addresses
      */
     function getParticipants(uint256 challengeId) external view returns (address[] memory) {
         return participants[challengeId];
@@ -229,9 +421,6 @@ contract StrideChallengeManager {
 
     /**
      * @notice Check if an address has joined a challenge
-     * @param challengeId The ID of the challenge
-     * @param participant The address to check
-     * @return True if the address has joined
      */
     function hasJoined(uint256 challengeId, address participant) external view returns (bool) {
         return hasJoinedMapping[challengeId][participant];
@@ -239,9 +428,6 @@ contract StrideChallengeManager {
 
     /**
      * @notice Check if an address has completed a challenge
-     * @param challengeId The ID of the challenge
-     * @param participant The address to check
-     * @return True if the address has marked completion
      */
     function hasCompleted(uint256 challengeId, address participant) external view returns (bool) {
         return hasCompletedMapping[challengeId][participant];
@@ -249,11 +435,29 @@ contract StrideChallengeManager {
 
     /**
      * @notice Get all completers of a challenge
-     * @param challengeId The ID of the challenge
-     * @return Array of completer addresses
      */
     function getCompleters(uint256 challengeId) external view returns (address[] memory) {
         return completers[challengeId];
     }
-}
 
+    /**
+     * @notice Check if user has voted to cancel
+     */
+    function hasVotedCancel(uint256 challengeId, address user) external view returns (bool) {
+        return cancelVotes[challengeId][user];
+    }
+
+    /**
+     * @notice Get cancel vote status
+     */
+    function getCancelVoteStatus(uint256 challengeId) external view returns (uint256 votes, uint256 required) {
+        return (cancelVoteCount[challengeId], participants[challengeId].length);
+    }
+
+    /**
+     * @notice Get user statistics
+     */
+    function getUserStats(address user) external view returns (UserStats memory) {
+        return userStats[user];
+    }
+}

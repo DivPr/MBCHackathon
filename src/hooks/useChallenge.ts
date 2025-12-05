@@ -1,38 +1,35 @@
+"use client";
+
 import { useReadContract, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
 import { STRIDE_CHALLENGE_ADDRESS, STRIDE_CHALLENGE_ABI } from "@/config/contracts";
 import { parseEther } from "viem";
 
-// Types
-export interface Challenge {
-  id: bigint;
-  creator: `0x${string}`;
-  stakeAmount: bigint;
-  endTime: bigint;
-  description: string;
-  settled: boolean;
-  totalPool: bigint;
-}
+// ============ Read Hooks ============
 
-// Read challenge count
 export function useChallengeCount() {
   return useReadContract({
     address: STRIDE_CHALLENGE_ADDRESS,
     abi: STRIDE_CHALLENGE_ABI,
     functionName: "challengeCount",
+    query: {
+      refetchInterval: 5000, // Refetch every 5 seconds
+    },
   });
 }
 
-// Read single challenge
 export function useChallenge(challengeId: bigint) {
   return useReadContract({
     address: STRIDE_CHALLENGE_ADDRESS,
     abi: STRIDE_CHALLENGE_ABI,
     functionName: "getChallenge",
     args: [challengeId],
+    query: {
+      retry: 1, // Only retry once
+      retryDelay: 500,
+    },
   });
 }
 
-// Read participants
 export function useParticipants(challengeId: bigint) {
   return useReadContract({
     address: STRIDE_CHALLENGE_ADDRESS,
@@ -42,8 +39,7 @@ export function useParticipants(challengeId: bigint) {
   });
 }
 
-// Check if user has joined
-export function useHasJoined(challengeId: bigint, address: `0x${string}` | undefined) {
+export function useHasJoined(challengeId: bigint, address?: `0x${string}`) {
   return useReadContract({
     address: STRIDE_CHALLENGE_ADDRESS,
     abi: STRIDE_CHALLENGE_ABI,
@@ -55,8 +51,7 @@ export function useHasJoined(challengeId: bigint, address: `0x${string}` | undef
   });
 }
 
-// Check if user has completed
-export function useHasCompleted(challengeId: bigint, address: `0x${string}` | undefined) {
+export function useHasCompleted(challengeId: bigint, address?: `0x${string}`) {
   return useReadContract({
     address: STRIDE_CHALLENGE_ADDRESS,
     abi: STRIDE_CHALLENGE_ABI,
@@ -68,7 +63,6 @@ export function useHasCompleted(challengeId: bigint, address: `0x${string}` | un
   });
 }
 
-// Get all completers
 export function useCompleters(challengeId: bigint) {
   return useReadContract({
     address: STRIDE_CHALLENGE_ADDRESS,
@@ -78,28 +72,72 @@ export function useCompleters(challengeId: bigint) {
   });
 }
 
-// Create challenge hook
+export function useHasVotedCancel(challengeId: bigint, address?: `0x${string}`) {
+  return useReadContract({
+    address: STRIDE_CHALLENGE_ADDRESS,
+    abi: STRIDE_CHALLENGE_ABI,
+    functionName: "hasVotedCancel",
+    args: address ? [challengeId, address] : undefined,
+    query: {
+      enabled: !!address,
+    },
+  });
+}
+
+export function useCancelVoteStatus(challengeId: bigint) {
+  return useReadContract({
+    address: STRIDE_CHALLENGE_ADDRESS,
+    abi: STRIDE_CHALLENGE_ABI,
+    functionName: "getCancelVoteStatus",
+    args: [challengeId],
+  });
+}
+
+export function useUserStats(address?: `0x${string}`) {
+  return useReadContract({
+    address: STRIDE_CHALLENGE_ADDRESS,
+    abi: STRIDE_CHALLENGE_ABI,
+    functionName: "getUserStats",
+    args: address ? [address] : undefined,
+    query: {
+      enabled: !!address,
+    },
+  });
+}
+
+// ============ Write Hooks ============
+
 export function useCreateChallenge() {
   const { writeContract, data: hash, isPending, error } = useWriteContract();
-  
-  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({
-    hash,
-  });
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash });
 
   const createChallenge = async (
-    stakeAmountEth: string,
-    durationSeconds: number,
-    description: string
+    stakeAmount: string,
+    duration: number,
+    description: string,
+    groupId?: number
   ) => {
-    const stakeAmount = parseEther(stakeAmountEth);
+    const value = parseEther(stakeAmount);
     
-    writeContract({
-      address: STRIDE_CHALLENGE_ADDRESS,
-      abi: STRIDE_CHALLENGE_ABI,
-      functionName: "createChallenge",
-      args: [stakeAmount, BigInt(durationSeconds), description],
-      value: stakeAmount,
-    });
+    if (groupId && groupId > 0) {
+      // Create with group
+      writeContract({
+        address: STRIDE_CHALLENGE_ADDRESS,
+        abi: STRIDE_CHALLENGE_ABI,
+        functionName: "createChallenge",
+        args: [value, BigInt(duration), description, BigInt(groupId)],
+        value,
+      });
+    } else {
+      // Create without group
+      writeContract({
+        address: STRIDE_CHALLENGE_ADDRESS,
+        abi: STRIDE_CHALLENGE_ABI,
+        functionName: "createChallenge",
+        args: [value, BigInt(duration), description],
+        value,
+      });
+    }
   };
 
   return {
@@ -107,20 +145,16 @@ export function useCreateChallenge() {
     isPending,
     isConfirming,
     isSuccess,
-    hash,
     error,
+    hash,
   };
 }
 
-// Join challenge hook
 export function useJoinChallenge() {
   const { writeContract, data: hash, isPending, error } = useWriteContract();
-  
-  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({
-    hash,
-  });
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash });
 
-  const joinChallenge = (challengeId: bigint, stakeAmount: bigint) => {
+  const joinChallenge = async (challengeId: bigint, stakeAmount: bigint) => {
     writeContract({
       address: STRIDE_CHALLENGE_ADDRESS,
       abi: STRIDE_CHALLENGE_ABI,
@@ -135,20 +169,16 @@ export function useJoinChallenge() {
     isPending,
     isConfirming,
     isSuccess,
-    hash,
     error,
+    hash,
   };
 }
 
-// Mark completed hook
 export function useMarkCompleted() {
   const { writeContract, data: hash, isPending, error } = useWriteContract();
-  
-  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({
-    hash,
-  });
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash });
 
-  const markCompleted = (challengeId: bigint) => {
+  const markCompleted = async (challengeId: bigint) => {
     writeContract({
       address: STRIDE_CHALLENGE_ADDRESS,
       abi: STRIDE_CHALLENGE_ABI,
@@ -162,20 +192,16 @@ export function useMarkCompleted() {
     isPending,
     isConfirming,
     isSuccess,
-    hash,
     error,
+    hash,
   };
 }
 
-// Settle challenge hook
 export function useSettleChallenge() {
   const { writeContract, data: hash, isPending, error } = useWriteContract();
-  
-  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({
-    hash,
-  });
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash });
 
-  const settleChallenge = (challengeId: bigint) => {
+  const settleChallenge = async (challengeId: bigint) => {
     writeContract({
       address: STRIDE_CHALLENGE_ADDRESS,
       abi: STRIDE_CHALLENGE_ABI,
@@ -189,8 +215,53 @@ export function useSettleChallenge() {
     isPending,
     isConfirming,
     isSuccess,
-    hash,
     error,
+    hash,
   };
 }
 
+export function useVoteCancelChallenge() {
+  const { writeContract, data: hash, isPending, error } = useWriteContract();
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash });
+
+  const voteCancelChallenge = async (challengeId: bigint) => {
+    writeContract({
+      address: STRIDE_CHALLENGE_ADDRESS,
+      abi: STRIDE_CHALLENGE_ABI,
+      functionName: "voteCancelChallenge",
+      args: [challengeId],
+    });
+  };
+
+  return {
+    voteCancelChallenge,
+    isPending,
+    isConfirming,
+    isSuccess,
+    error,
+    hash,
+  };
+}
+
+export function useCreatorCancelChallenge() {
+  const { writeContract, data: hash, isPending, error } = useWriteContract();
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash });
+
+  const creatorCancelChallenge = async (challengeId: bigint) => {
+    writeContract({
+      address: STRIDE_CHALLENGE_ADDRESS,
+      abi: STRIDE_CHALLENGE_ABI,
+      functionName: "creatorCancelChallenge",
+      args: [challengeId],
+    });
+  };
+
+  return {
+    creatorCancelChallenge,
+    isPending,
+    isConfirming,
+    isSuccess,
+    error,
+    hash,
+  };
+}
