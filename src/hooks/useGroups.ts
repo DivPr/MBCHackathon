@@ -1,7 +1,7 @@
 "use client";
 
 import { useReadContract, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
-import { STRIDE_GROUPS_ADDRESS, STRIDE_GROUPS_ABI } from "@/config/groupsContract";
+import { STRIDE_GROUPS_ADDRESS, STRIDE_GROUPS_ABI, isGroupsContractDeployed } from "@/config/groupsContract";
 
 // ============ Read Hooks ============
 
@@ -11,6 +11,7 @@ export function useGroupCount() {
     abi: STRIDE_GROUPS_ABI,
     functionName: "groupCount",
     query: {
+      enabled: isGroupsContractDeployed,
       refetchInterval: 3000, // Refetch every 3 seconds
     },
   });
@@ -23,6 +24,7 @@ export function useGroup(groupId: bigint) {
     functionName: "getGroup",
     args: [groupId],
     query: {
+      enabled: isGroupsContractDeployed,
       refetchInterval: 3000, // Refetch every 3 seconds
     },
   });
@@ -35,6 +37,7 @@ export function useGroupMembers(groupId: bigint) {
     functionName: "getGroupMembers",
     args: [groupId],
     query: {
+      enabled: isGroupsContractDeployed,
       refetchInterval: 3000, // Refetch every 3 seconds
     },
   });
@@ -47,6 +50,7 @@ export function useGroupChallenges(groupId: bigint) {
     functionName: "getGroupChallenges",
     args: [groupId],
     query: {
+      enabled: isGroupsContractDeployed,
       refetchInterval: 3000, // Refetch every 3 seconds
     },
   });
@@ -59,7 +63,7 @@ export function useUserGroups(userAddress?: `0x${string}`) {
     functionName: "getUserGroups",
     args: userAddress ? [userAddress] : undefined,
     query: {
-      enabled: !!userAddress,
+      enabled: isGroupsContractDeployed && !!userAddress,
       refetchInterval: 3000, // Refetch every 3 seconds to catch new groups
     },
   });
@@ -72,7 +76,7 @@ export function useIsMember(groupId: bigint, userAddress?: `0x${string}`) {
     functionName: "isMember",
     args: userAddress ? [groupId, userAddress] : undefined,
     query: {
-      enabled: !!userAddress,
+      enabled: isGroupsContractDeployed && !!userAddress,
     },
   });
 }
@@ -96,7 +100,7 @@ export function useInviteCode(groupId: bigint, userAddress?: `0x${string}`, crea
     args: [groupId],
     account: userAddress,
     query: {
-      enabled: !!isCreator, // Only fetch if user is the creator
+      enabled: isGroupsContractDeployed && !!isCreator, // Only fetch if user is the creator
     },
   });
 }
@@ -108,7 +112,7 @@ export function useMemberStats(groupId: bigint, memberAddress?: `0x${string}`) {
     functionName: "getMemberStats",
     args: memberAddress ? [groupId, memberAddress] : undefined,
     query: {
-      enabled: !!memberAddress,
+      enabled: isGroupsContractDeployed && !!memberAddress,
     },
   });
 }
@@ -119,6 +123,9 @@ export function useGroupStats(groupId: bigint) {
     abi: STRIDE_GROUPS_ABI,
     functionName: "getGroupStats",
     args: [groupId],
+    query: {
+      enabled: isGroupsContractDeployed,
+    },
   });
 }
 
@@ -128,6 +135,9 @@ export function useIsGroupDeleted(groupId: bigint) {
     abi: STRIDE_GROUPS_ABI,
     functionName: "isGroupDeleted",
     args: [groupId],
+    query: {
+      enabled: isGroupsContractDeployed,
+    },
   });
 }
 

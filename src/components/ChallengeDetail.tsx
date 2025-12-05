@@ -26,7 +26,7 @@ import { STRIDE_CHALLENGE_ABI, STRIDE_CHALLENGE_ADDRESS } from "@/config/contrac
 import { formatEther } from "viem";
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { ShareModal } from "./ShareModal";
-import { WalkProofCapture, WalkProofDisplay, getWalkProof } from "./WalkProof";
+import { ProofPicCamera, ProofPicDisplay, getProofPic } from "./ProofPic";
 import { VictoryCelebration, fireConfetti } from "./HypeReactions";
 import { ShareCard } from "./ShareCard";
 import { RematchCard } from "./RematchButton";
@@ -128,9 +128,11 @@ export function ChallengeDetail({ challengeId }: ChallengeDetailProps) {
   const [timeLeft, setTimeLeft] = useState("");
   const [mounted, setMounted] = useState(false);
   
-  // Walk proof states
-  const [showWalkProof, setShowWalkProof] = useState(false);
-  const [walkProofData, setWalkProofData] = useState<{ distance: number; duration: number; samples: { lat: number; lon: number; t: number }[]; suspicious: boolean } | null>(null);
+  // Proof pic states
+  const [showCamera, setShowCamera] = useState(false);
+  const [proofPicUrl, setProofPicUrl] = useState<string | null>(null);
+  const [isUploadingProof, setIsUploadingProof] = useState(false);
+  const [posePrompt, setPosePrompt] = useState<string>("");
   const [proofs, setProofs] = useState<ProofEntry[]>([]);
   const [showVictory, setShowVictory] = useState(false);
   const [showShareCard, setShowShareCard] = useState(false);
@@ -142,11 +144,33 @@ export function ChallengeDetail({ challengeId }: ChallengeDetailProps) {
 
   useEffect(() => {
     setMounted(true);
-    // Load walk proof if exists
-    const savedWalk = getWalkProof(challengeId);
-    if (savedWalk) {
-      setWalkProofData(savedWalk);
+    // Load proof pic if exists
+    const savedPic = getProofPic(challengeId);
+    if (savedPic) {
+      setProofPicUrl(savedPic);
     }
+  }, [challengeId]);
+
+  // Assign and persist a simple pose prompt for anti-reuse
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const key = `stride_pose_prompt_${challengeId.toString()}`;
+    const existing = localStorage.getItem(key);
+    if (existing) {
+      setPosePrompt(existing);
+      return;
+    }
+
+    const prompts = [
+      "Show a thumbs up with your left hand",
+      "Do a peace sign with your right hand",
+      "Point at your shoes",
+      "Flex your bicep",
+      "Hold up three fingers",
+    ];
+    const chosen = prompts[Math.floor(Math.random() * prompts.length)];
+    setPosePrompt(chosen);
+    localStorage.setItem(key, chosen);
   }, [challengeId]);
 
   const fetchProofs = useCallback(async () => {
@@ -297,22 +321,42 @@ export function ChallengeDetail({ challengeId }: ChallengeDetailProps) {
   }, [approvalInfos, completers]);
 
   // Define handlers that use hooks before any conditional returns
-  const handleWalkProofSubmit = useCallback(async (walkData: { distance: number; duration: number; samples: { lat: number; lon: number; t: number }[]; suspicious: boolean }) => {
-    setWalkProofData(walkData);
-    setShowWalkProof(false);
-    
-    // Try to mark with proof CID, fall back to regular mark
+  const handleCameraCapture = useCallback(async (imageUrl: string) => {
+    setProofPicUrl(imageUrl);
+    setShowCamera(false);
+    setIsUploadingProof(true);
+
     try {
-      const proofCid = `walk-${Date.now()}`;
+      if (!address) {
+        markCompleted(challengeId);
+        return;
+      }
+
+      const res = await fetch("/api/proofs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          challengeId: challengeId.toString(),
+          participant: address,
+          imageData: imageUrl,
+          posePrompt,
+        }),
+      });
+
+      const data = await res.json();
+      const proofCid = data.proofCid || `local-${Date.now()}`;
+
       await markCompletedWithProof(challengeId, proofCid);
-    } catch {
+      fetchProofs();
+    } catch (err) {
+      console.error("Proof upload failed, falling back to on-chain claim only", err);
       markCompleted(challengeId);
+    } finally {
+      recordCompletion();
+      fireConfetti();
+      setIsUploadingProof(false);
     }
-    
-    // Record streak and celebrate
-    recordCompletion();
-    fireConfetti();
-  }, [challengeId, markCompleted, markCompletedWithProof, recordCompletion]);
+  }, [address, challengeId, fetchProofs, markCompleted, markCompletedWithProof, posePrompt, recordCompletion]);
 
   if (!mounted || isLoading || !challenge) {
     return (
@@ -347,8 +391,19 @@ export function ChallengeDetail({ challengeId }: ChallengeDetailProps) {
   };
 
   const handleComplete = () => {
-    // Open walk proof capture
-    setShowWalkProof(true);
+    setShowCamera(true);
+  };
+
+  const handleSkipPhoto = async () => {
+    setShowCamera(false);
+    try {
+      await markCompletedWithProof(challengeId, "skip-proof");
+    } catch (err) {
+      console.error("markCompletedWithProof failed, falling back", err);
+      markCompleted(challengeId);
+    }
+    recordCompletion();
+    fireConfetti();
   };
 
   const handleSettle = () => {
@@ -619,8 +674,13 @@ export function ChallengeDetail({ challengeId }: ChallengeDetailProps) {
               </div>
               <h3 className="text-lg font-bold mb-2">Finished Your Run?</h3>
               <p className="text-stride-muted mb-4">
-                Submit your walk data to prove you completed the challenge!
+                Take a proof pic and claim your share of the prize pool!
               </p>
+              {posePrompt && (
+                <div className="p-3 bg-white/5 border border-white/10 rounded-xl mb-4 text-sm">
+                  Pose prompt for your proof pic: <span className="font-semibold text-white">{posePrompt}</span>
+                </div>
+              )}
               
               {/* Streak Badge */}
               <div className="flex justify-center mb-4">
@@ -629,7 +689,7 @@ export function ChallengeDetail({ challengeId }: ChallengeDetailProps) {
               
               <button
                 onClick={handleComplete}
-                disabled={isMarking || isMarkConfirming || isMarkingWithProof || isMarkWithProofConfirming}
+                disabled={isMarking || isMarkConfirming || isMarkingWithProof || isMarkWithProofConfirming || isUploadingProof}
                 className="btn-primary w-full text-lg py-4 flex items-center justify-center gap-3"
               >
                 {isMarkConfirming || isMarkWithProofConfirming ? (
@@ -637,17 +697,15 @@ export function ChallengeDetail({ challengeId }: ChallengeDetailProps) {
                     <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                     Confirming...
                   </>
-                ) : isMarking || isMarkingWithProof ? (
+                ) : isMarking || isMarkingWithProof || isUploadingProof ? (
                   <>
                     <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                     Submitting...
                   </>
                 ) : (
                   <>
-                    <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
-                    </svg>
-                    Submit Walk Proof
+                    <span className="text-xl">📸</span>
+                    Take Proof Pic & Complete
                   </>
                 )}
               </button>
@@ -672,13 +730,13 @@ export function ChallengeDetail({ challengeId }: ChallengeDetailProps) {
                 Verification: {approvalThresholdNum === 0 ? "Auto-verified (solo challenge)" : `${selfInfo?.approvals ?? 0}/${approvalThresholdNum} approvals`}
               </div>
               
-              {/* Show walk proof if recorded */}
-              {walkProofData && (
+              {/* Show proof pic if recorded */}
+              {proofPicUrl && (
                 <div className="mt-4">
-                  <WalkProofDisplay 
+                  <ProofPicDisplay 
                     challengeId={challengeId} 
-                    walkData={walkProofData}
-                    className="max-w-sm mx-auto"
+                    imageUrl={proofPicUrl}
+                    className="max-w-xs mx-auto aspect-[3/4]"
                   />
                 </div>
               )}
@@ -803,7 +861,7 @@ export function ChallengeDetail({ challengeId }: ChallengeDetailProps) {
           </span>
         </div>
         <p className="text-sm text-stride-muted mb-4">
-          Runners submit walk proof with GPS data. Peers approve before payout.
+          Runners submit a proof pic with a pose prompt. Peers approve before payout.
         </p>
 
         {completers && completers.length > 0 ? (
@@ -1131,13 +1189,22 @@ export function ChallengeDetail({ challengeId }: ChallengeDetailProps) {
         </div>
       )}
 
-      {/* Walk Proof Modal */}
-      {showWalkProof && (
-        <WalkProofCapture
-          challengeId={challengeId}
-          onSubmit={handleWalkProofSubmit}
-          onClose={() => setShowWalkProof(false)}
-        />
+      {/* Proof Pic Modal */}
+      {showCamera && (
+        <div className="fixed inset-0 z-50">
+          <ProofPicCamera
+            challengeId={challengeId}
+            onCapture={handleCameraCapture}
+            onClose={() => setShowCamera(false)}
+            posePrompt={posePrompt}
+          />
+          <button
+            onClick={handleSkipPhoto}
+            className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 px-6 py-2 bg-white/10 hover:bg-white/20 rounded-full text-sm transition-colors"
+          >
+            Skip Photo
+          </button>
+        </div>
       )}
 
       {/* Victory Celebration Modal */}

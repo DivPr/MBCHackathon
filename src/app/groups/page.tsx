@@ -9,6 +9,7 @@ import { useGroupCount, useUserGroups } from "@/hooks/useGroups";
 import { GroupCard } from "@/components/GroupCard";
 import { CreateGroupModal } from "@/components/CreateGroupModal";
 import { JoinGroupModal } from "@/components/JoinGroupModal";
+import { isGroupsContractDeployed } from "@/config/groupsContract";
 
 export default function GroupsPage() {
   const { address, isConnected } = useAccount();
@@ -39,6 +40,25 @@ export default function GroupsPage() {
           <div className="h-8 bg-white/5 rounded w-1/3 mb-4" />
           <div className="h-4 bg-white/5 rounded w-1/2" />
         </div>
+      </main>
+    );
+  }
+
+  if (!isGroupsContractDeployed) {
+    return (
+      <main className="min-h-screen bg-stride-dark">
+        <Navbar />
+        <section className="max-w-5xl mx-auto px-4 py-12">
+          <div className="card border-orange-500/40 bg-orange-500/5">
+            <h2 className="text-xl font-bold mb-2 text-orange-400">Groups contract not configured</h2>
+            <p className="text-white/60 text-sm mb-3">
+              Set `NEXT_PUBLIC_GROUPS_CONTRACT_ADDRESS` for Base Sepolia (or enable `NEXT_PUBLIC_LOCAL_DEV=true` for Hardhat) and reload.
+            </p>
+            <div className="text-xs text-stride-muted font-mono bg-stride-dark/60 px-3 py-2 rounded-lg">
+              Required: Groups contract deployed on chain 84532 (Base Sepolia)
+            </div>
+          </div>
+        </section>
       </main>
     );
   }

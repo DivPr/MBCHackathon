@@ -1,7 +1,7 @@
 "use client";
 
 import { useReadContract, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
-import { STRIDE_CHALLENGE_ADDRESS, STRIDE_CHALLENGE_ABI } from "@/config/contracts";
+import { STRIDE_CHALLENGE_ADDRESS, STRIDE_CHALLENGE_ABI, isContractDeployed } from "@/config/contracts";
 import { parseEther } from "viem";
 
 // ============ Read Hooks ============
@@ -12,6 +12,7 @@ export function useChallengeCount() {
     abi: STRIDE_CHALLENGE_ABI,
     functionName: "challengeCount",
     query: {
+      enabled: isContractDeployed,
       refetchInterval: 5000, // Refetch every 5 seconds
     },
   });
@@ -24,6 +25,7 @@ export function useChallenge(challengeId: bigint) {
     functionName: "getChallenge",
     args: [challengeId],
     query: {
+      enabled: isContractDeployed,
       retry: 1, // Only retry once
       retryDelay: 500,
     },
@@ -36,6 +38,9 @@ export function useParticipants(challengeId: bigint) {
     abi: STRIDE_CHALLENGE_ABI,
     functionName: "getParticipants",
     args: [challengeId],
+    query: {
+      enabled: isContractDeployed,
+    },
   });
 }
 
@@ -46,7 +51,7 @@ export function useHasJoined(challengeId: bigint, address?: `0x${string}`) {
     functionName: "hasJoined",
     args: address ? [challengeId, address] : undefined,
     query: {
-      enabled: !!address,
+      enabled: isContractDeployed && !!address,
     },
   });
 }
@@ -58,7 +63,7 @@ export function useHasCompleted(challengeId: bigint, address?: `0x${string}`) {
     functionName: "hasCompleted",
     args: address ? [challengeId, address] : undefined,
     query: {
-      enabled: !!address,
+      enabled: isContractDeployed && !!address,
     },
   });
 }
@@ -69,6 +74,9 @@ export function useCompleters(challengeId: bigint) {
     abi: STRIDE_CHALLENGE_ABI,
     functionName: "getCompleters",
     args: [challengeId],
+    query: {
+      enabled: isContractDeployed,
+    },
   });
 }
 
@@ -78,6 +86,9 @@ export function useVerifiedCompleters(challengeId: bigint) {
     abi: STRIDE_CHALLENGE_ABI,
     functionName: "getVerifiedCompleters",
     args: [challengeId],
+    query: {
+      enabled: isContractDeployed,
+    },
   });
 }
 
@@ -88,7 +99,7 @@ export function useCompletionInfo(challengeId: bigint, runner?: `0x${string}`) {
     functionName: "getCompletionInfo",
     args: runner ? [challengeId, runner] : undefined,
     query: {
-      enabled: !!runner,
+      enabled: isContractDeployed && !!runner,
     },
   });
 }
@@ -100,7 +111,7 @@ export function useHasApprovedCompletion(challengeId: bigint, runner?: `0x${stri
     functionName: "hasApproved",
     args: runner && voter ? [challengeId, runner, voter] : undefined,
     query: {
-      enabled: !!runner && !!voter,
+      enabled: isContractDeployed && !!runner && !!voter,
     },
   });
 }
@@ -111,6 +122,9 @@ export function useApprovalThreshold(challengeId: bigint) {
     abi: STRIDE_CHALLENGE_ABI,
     functionName: "getApprovalThreshold",
     args: [challengeId],
+    query: {
+      enabled: isContractDeployed,
+    },
   });
 }
 
@@ -121,7 +135,7 @@ export function useHasVotedCancel(challengeId: bigint, address?: `0x${string}`) 
     functionName: "hasVotedCancel",
     args: address ? [challengeId, address] : undefined,
     query: {
-      enabled: !!address,
+      enabled: isContractDeployed && !!address,
     },
   });
 }
@@ -132,6 +146,9 @@ export function useCancelVoteStatus(challengeId: bigint) {
     abi: STRIDE_CHALLENGE_ABI,
     functionName: "getCancelVoteStatus",
     args: [challengeId],
+    query: {
+      enabled: isContractDeployed,
+    },
   });
 }
 
@@ -142,7 +159,7 @@ export function useHasVotedEarlySettle(challengeId: bigint, address?: `0x${strin
     functionName: "hasVotedEarlySettle",
     args: address ? [challengeId, address] : undefined,
     query: {
-      enabled: !!address,
+      enabled: isContractDeployed && !!address,
     },
   });
 }
@@ -153,6 +170,9 @@ export function useEarlySettleVoteStatus(challengeId: bigint) {
     abi: STRIDE_CHALLENGE_ABI,
     functionName: "getEarlySettleVoteStatus",
     args: [challengeId],
+    query: {
+      enabled: isContractDeployed,
+    },
   });
 }
 
@@ -161,6 +181,9 @@ export function useCharityAddress() {
     address: STRIDE_CHALLENGE_ADDRESS,
     abi: STRIDE_CHALLENGE_ABI,
     functionName: "charityAddress",
+    query: {
+      enabled: isContractDeployed,
+    },
   });
 }
 
@@ -169,6 +192,9 @@ export function useTotalDonatedToCharity() {
     address: STRIDE_CHALLENGE_ADDRESS,
     abi: STRIDE_CHALLENGE_ABI,
     functionName: "totalDonatedToCharity",
+    query: {
+      enabled: isContractDeployed,
+    },
   });
 }
 
@@ -179,7 +205,7 @@ export function useUserStats(address?: `0x${string}`) {
     functionName: "getUserStats",
     args: address ? [address] : undefined,
     query: {
-      enabled: !!address,
+      enabled: isContractDeployed && !!address,
     },
   });
 }

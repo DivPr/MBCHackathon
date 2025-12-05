@@ -1,28 +1,32 @@
 import { Address } from "viem";
 
+const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000" as Address;
+const HARDHAT_USDC = "0xa85233C63b9Ee964Add6F2cffe00Fd84eb32338f" as Address;
+const HARDHAT_STRIDE_USDC = "0x4A679253410272dd5232B3Ff7cF5dbB88f295319" as Address;
+const BASE_SEPOLIA_USDC = "0x036CbD53842c5426634e7929541eC2318f3dCF7e" as Address;
+const isLocalDev = process.env.NEXT_PUBLIC_LOCAL_DEV === "true";
+
 // ============ Circle USDC Configuration ============
 // USDC is the leading dollar-backed stablecoin by Circle
 // https://developers.circle.com/
 
 // USDC Contract Addresses
 // Localhost Hardhat (MockUSDC): 0xa85233C63b9Ee964Add6F2cffe00Fd84eb32338f
-// Base Sepolia: Official Circle USDC testnet deployment
+// Base Sepolia: Official Circle USDC testnet deployment (BASE_SEPOLIA_USDC)
 export const USDC_ADDRESS: Address = 
   (process.env.NEXT_PUBLIC_USDC_ADDRESS as Address) ||
-  "0xa85233C63b9Ee964Add6F2cffe00Fd84eb32338f"; // Localhost MockUSDC
-
-// Base Sepolia USDC (for production deployment)
-export const BASE_SEPOLIA_USDC: Address = "0x036CbD53842c5426634e7929541eC2318f3dCF7e";
+  (isLocalDev ? HARDHAT_USDC : BASE_SEPOLIA_USDC);
 
 // Stride USDC Challenge Manager
 // Localhost Hardhat: 0x4A679253410272dd5232B3Ff7cF5dbB88f295319
+// Base Sepolia: set NEXT_PUBLIC_USDC_CONTRACT_ADDRESS
 export const STRIDE_USDC_CHALLENGE_ADDRESS: Address =
   (process.env.NEXT_PUBLIC_USDC_CONTRACT_ADDRESS as Address) ||
-  "0x4A679253410272dd5232B3Ff7cF5dbB88f295319";
+  (isLocalDev ? HARDHAT_STRIDE_USDC : ZERO_ADDRESS);
 
-// Check if USDC contract is deployed
+// Check if USDC contract is deployed/configured
 export const isUSDCContractDeployed =
-  STRIDE_USDC_CHALLENGE_ADDRESS !== "0x0000000000000000000000000000000000000000";
+  STRIDE_USDC_CHALLENGE_ADDRESS !== ZERO_ADDRESS;
 
 // USDC has 6 decimals (not 18 like ETH)
 export const USDC_DECIMALS = 6;

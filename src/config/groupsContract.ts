@@ -1,10 +1,17 @@
 import { Address } from "viem";
 
+const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000" as Address;
+const HARDHAT_GROUPS = "0xc6e7DF5E7b4f2A278906862b61205850344D4e7d" as Address;
+const isLocalDev = process.env.NEXT_PUBLIC_LOCAL_DEV === "true";
+
 // Groups contract address - update after deployment
 // Localhost Hardhat: 0xc6e7DF5E7b4f2A278906862b61205850344D4e7d
+// Base Sepolia: set NEXT_PUBLIC_GROUPS_CONTRACT_ADDRESS
 export const STRIDE_GROUPS_ADDRESS: Address =
-  ((process.env.NEXT_PUBLIC_GROUPS_CONTRACT_ADDRESS?.trim()) as Address) ||
-  "0xc6e7DF5E7b4f2A278906862b61205850344D4e7d";
+  (process.env.NEXT_PUBLIC_GROUPS_CONTRACT_ADDRESS?.trim() as Address) ||
+  (isLocalDev ? HARDHAT_GROUPS : ZERO_ADDRESS);
+
+export const isGroupsContractDeployed = STRIDE_GROUPS_ADDRESS !== ZERO_ADDRESS;
 
 export const STRIDE_GROUPS_ABI = [
   // Group Management

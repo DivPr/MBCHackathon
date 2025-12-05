@@ -2,6 +2,8 @@
 
 import { useChallengeCount } from "@/hooks/useChallenge";
 import { useUSDCChallengeCount } from "@/hooks/useUSDC";
+import { isContractDeployed as isEthContractDeployed } from "@/config/contracts";
+import { isUSDCContractDeployed } from "@/config/usdcContract";
 import { ChallengeCard } from "./ChallengeCard";
 import { useState, useEffect } from "react";
 
@@ -33,6 +35,29 @@ export function ChallengeList() {
               <div className="h-2 bg-white/5 rounded-full" />
             </div>
           ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (!isEthContractDeployed && !isUSDCContractDeployed) {
+    return (
+      <div className="card border-orange-500/30 bg-orange-500/5">
+        <div className="flex items-start gap-4">
+          <div className="w-12 h-12 bg-orange-500/20 rounded-xl flex items-center justify-center shrink-0">
+            <svg className="w-6 h-6 text-orange-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <div>
+            <h2 className="text-lg font-bold mb-2 text-orange-400">Contracts not configured</h2>
+            <p className="text-stride-muted text-sm mb-3">
+              Set `NEXT_PUBLIC_CONTRACT_ADDRESS` and `NEXT_PUBLIC_USDC_CONTRACT_ADDRESS` for Base Sepolia (chain 84532), or enable `NEXT_PUBLIC_LOCAL_DEV=true` for Hardhat.
+            </p>
+            <div className="text-xs text-stride-muted font-mono bg-stride-dark/50 px-3 py-2 rounded-lg">
+              RPC: https://sepolia.base.org • Chain ID: 84532
+            </div>
+          </div>
         </div>
       </div>
     );

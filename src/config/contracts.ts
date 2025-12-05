@@ -1,14 +1,18 @@
 import { Address } from "viem";
 
+const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000" as Address;
+const HARDHAT_STRIDE_CHALLENGE = "0x3Aa5ebB10DC797CAC828524e59A333d0A371443c" as Address;
+const isLocalDev = process.env.NEXT_PUBLIC_LOCAL_DEV === "true";
+
 // Contract address - update after deployment
 // Localhost Hardhat: 0x3Aa5ebB10DC797CAC828524e59A333d0A371443c
+// Base Sepolia: set NEXT_PUBLIC_CONTRACT_ADDRESS
 export const STRIDE_CHALLENGE_ADDRESS: Address =
-  ((process.env.NEXT_PUBLIC_CONTRACT_ADDRESS?.trim()) as Address) ||
-  "0x3Aa5ebB10DC797CAC828524e59A333d0A371443c";
+  (process.env.NEXT_PUBLIC_CONTRACT_ADDRESS?.trim() as Address) ||
+  (isLocalDev ? HARDHAT_STRIDE_CHALLENGE : ZERO_ADDRESS);
 
-// Check if contract is deployed
-export const isContractDeployed = 
-  STRIDE_CHALLENGE_ADDRESS !== "0x0000000000000000000000000000000000000000";
+// Check if contract is deployed/configured
+export const isContractDeployed = STRIDE_CHALLENGE_ADDRESS !== ZERO_ADDRESS;
 
 // ABI for StrideChallengeManager
 export const STRIDE_CHALLENGE_ABI = [

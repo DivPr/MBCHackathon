@@ -1,7 +1,13 @@
 "use client";
 
-import { QRCodeSVG } from "qrcode.react";
+import dynamic from "next/dynamic";
 import { useState } from "react";
+
+// Avoid SSR chunk resolution issues by loading QR code client-side only
+const QRCodeSVG = dynamic(
+  () => import("qrcode.react").then((mod) => mod.QRCodeSVG),
+  { ssr: false }
+);
 
 // Support both challenge sharing and generic sharing
 interface ChallengeShareProps {
