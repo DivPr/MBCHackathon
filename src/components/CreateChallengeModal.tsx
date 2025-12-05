@@ -14,6 +14,11 @@ interface CreateChallengeModalProps {
   groupId: bigint;
   groupName: string;
   onSuccess?: () => void;
+  // Rematch pre-fill props
+  initialDescription?: string;
+  initialStakeAmount?: string;
+  initialCurrency?: "ETH" | "USDC";
+  initialDuration?: number;
 }
 
 const DURATION_OPTIONS = [
@@ -29,17 +34,39 @@ const USDC_STAKE_OPTIONS = ["1", "5", "10", "25"];
 
 type Currency = "ETH" | "USDC";
 
-export function CreateChallengeModal({ onClose, groupId, groupName, onSuccess }: CreateChallengeModalProps) {
+export function CreateChallengeModal({ 
+  onClose, 
+  groupId, 
+  groupName, 
+  onSuccess,
+  initialDescription = "",
+  initialStakeAmount,
+  initialCurrency = "ETH",
+  initialDuration = 86400,
+}: CreateChallengeModalProps) {
   const { address } = useAccount();
-  const [description, setDescription] = useState("");
-  const [duration, setDuration] = useState(86400);
-  const [customDuration, setCustomDuration] = useState({ value: "", unit: "hours" });
-  const [currency, setCurrency] = useState<Currency>("ETH");
-  const [ethStakeAmount, setEthStakeAmount] = useState("0.0001");
-  const [usdcStakeAmount, setUsdcStakeAmount] = useState("5");
+  const [description, setDescription] = useState(initialDescription);
+  const [duration, setDuration] = useState(
+    DURATION_OPTIONS.some(o => o.value === initialDuration) ? initialDuration : -1
+  );
+  const [customDuration, setCustomDuration] = useState(() => {
+    if (!DURATION_OPTIONS.some(o => o.value === initialDuration) && initialDuration > 0) {
+      // Convert to hours if custom duration
+      const hours = Math.floor(initialDuration / 3600);
+      return { value: hours.toString(), unit: "hours" };
+    }
+    return { value: "", unit: "hours" };
+  });
+  const [currency, setCurrency] = useState<Currency>(initialCurrency);
+  const [ethStakeAmount, setEthStakeAmount] = useState(
+    initialCurrency === "ETH" && initialStakeAmount ? initialStakeAmount : "0.0001"
+  );
+  const [usdcStakeAmount, setUsdcStakeAmount] = useState(
+    initialCurrency === "USDC" && initialStakeAmount ? initialStakeAmount : "5"
+  );
   const [customStake, setCustomStake] = useState("");
   const [step, setStep] = useState<"create" | "approve" | "register" | "done">("create");
-  const [newChallengeId, setNewChallengeId] = useState<bigint | null>(null);
+  const isRematch = !!initialDescription;
 
   // ETH Challenge hooks
   const { data: ethChallengeCount } = useChallengeCount();
@@ -52,7 +79,7 @@ export function CreateChallengeModal({ onClose, groupId, groupName, onSuccess }:
   // USDC Balance and Approval
   const { data: usdcBalance, refetch: refetchBalance } = useUSDCBalance(address);
   const { data: usdcAllowance, refetch: refetchAllowance } = useUSDCAllowance(address);
-  const { approve, approveMax, isPending: approvePending, isConfirming: approveConfirming, isSuccess: approveSuccess } = useApproveUSDC();
+  const { approveMax, isPending: approvePending, isConfirming: approveConfirming, isSuccess: approveSuccess } = useApproveUSDC();
   const { claimFaucet, isPending: faucetPending, isConfirming: faucetConfirming, isSuccess: faucetSuccess } = useUSDCFaucet();
   
   // Group registration
@@ -98,7 +125,6 @@ export function CreateChallengeModal({ onClose, groupId, groupName, onSuccess }:
   useEffect(() => {
     if (isSuccess && step === "create" && challengeCount !== undefined) {
       const newId = challengeCount;
-      setNewChallengeId(newId);
       setStep("register");
       
       const stakeWei = currency === "ETH" ? parseEther(stakeAmount) : parsedUsdcAmount;
@@ -169,13 +195,30 @@ export function CreateChallengeModal({ onClose, groupId, groupName, onSuccess }:
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-white/10">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-stride-purple to-pink-500 rounded-xl flex items-center justify-center">
-              <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
+            <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+              isRematch 
+                ? "bg-gradient-to-br from-yellow-400 to-orange-500" 
+                : "bg-gradient-to-br from-stride-purple to-pink-500"
+            }`}>
+              {isRematch ? (
+                <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+              ) : (
+                <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+              )}
             </div>
             <div>
-              <h2 className="text-xl font-bold">Create Challenge</h2>
+              <h2 className="text-xl font-bold flex items-center gap-2">
+                {isRematch ? "Rematch Challenge" : "Create Challenge"}
+                {isRematch && (
+                  <span className="text-xs px-2 py-0.5 bg-yellow-500/20 text-yellow-400 rounded-full">
+                    🔥 Rematch
+                  </span>
+                )}
+              </h2>
               <p className="text-xs text-stride-muted">in {groupName}</p>
             </div>
           </div>

@@ -4,6 +4,7 @@ import { useState, useEffect, use } from "react";
 import Link from "next/link";
 import { useAccount } from "wagmi";
 import { formatEther } from "viem";
+import { useSearchParams } from "next/navigation";
 import { Navbar } from "@/components/Navbar";
 import { 
   useGroup, 
@@ -21,10 +22,12 @@ import {
 import { ShareModal } from "@/components/ShareModal";
 import { ChallengeCard } from "@/components/ChallengeCard";
 import { CreateChallengeModal } from "@/components/CreateChallengeModal";
+import { getRematchData } from "@/components/RematchButton";
 
 export default function GroupDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const groupId = BigInt(id);
+  const searchParams = useSearchParams();
   
   const { address, isConnected } = useAccount();
   const [mounted, setMounted] = useState(false);
@@ -34,6 +37,14 @@ export default function GroupDetailPage({ params }: { params: Promise<{ id: stri
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
   const [showCreateChallengeModal, setShowCreateChallengeModal] = useState(false);
+  
+  // Rematch data
+  const [rematchData, setRematchData] = useState<{
+    description: string;
+    stakeAmount: string;
+    currency: "ETH" | "USDC";
+    duration: number;
+  } | null>(null);
 
   const { data: group, isLoading, refetch } = useGroup(groupId);
   const { data: members } = useGroupMembers(groupId);
@@ -55,6 +66,22 @@ export default function GroupDetailPage({ params }: { params: Promise<{ id: stri
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // Check for rematch query parameter
+  useEffect(() => {
+    if (searchParams.get("rematch") === "true") {
+      const data = getRematchData();
+      if (data) {
+        setRematchData({
+          description: data.description,
+          stakeAmount: data.stakeAmount,
+          currency: data.currency as "ETH" | "USDC",
+          duration: data.duration,
+        });
+        setShowCreateChallengeModal(true);
+      }
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     if (joinSuccess || leaveSuccess) {
@@ -574,13 +601,21 @@ export default function GroupDetailPage({ params }: { params: Promise<{ id: stri
       {/* Create Challenge Modal */}
       {showCreateChallengeModal && (
         <CreateChallengeModal
-          onClose={() => setShowCreateChallengeModal(false)}
+          onClose={() => {
+            setShowCreateChallengeModal(false);
+            setRematchData(null);
+          }}
           groupId={groupId}
           groupName={name}
           onSuccess={() => {
             refetchChallenges();
             refetch();
+            setRematchData(null);
           }}
+          initialDescription={rematchData?.description}
+          initialStakeAmount={rematchData?.stakeAmount}
+          initialCurrency={rematchData?.currency}
+          initialDuration={rematchData?.duration}
         />
       )}
     </main>

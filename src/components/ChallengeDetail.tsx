@@ -19,8 +19,13 @@ import {
   useEarlySettleVoteStatus,
 } from "@/hooks/useChallenge";
 import { formatEther } from "viem";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { ShareModal } from "./ShareModal";
+import { ProofPicCamera, ProofPicDisplay, getProofPic } from "./ProofPic";
+import { VictoryCelebration, ReactionBar, fireConfetti } from "./HypeReactions";
+import { ShareCard } from "./ShareCard";
+import { RematchCard } from "./RematchButton";
+import { useStreaks, StreakBadge } from "@/hooks/useStreaks";
 
 interface ChallengeDetailProps {
   challengeId: bigint;
@@ -85,10 +90,39 @@ export function ChallengeDetail({ challengeId }: ChallengeDetailProps) {
   const [showEarlySettleModal, setShowEarlySettleModal] = useState(false);
   const [timeLeft, setTimeLeft] = useState("");
   const [mounted, setMounted] = useState(false);
+  
+  // New feature states
+  const [showCamera, setShowCamera] = useState(false);
+  const [proofPicUrl, setProofPicUrl] = useState<string | null>(null);
+  const [showVictory, setShowVictory] = useState(false);
+  const [showShareCard, setShowShareCard] = useState(false);
+  const [showRematchCard, setShowRematchCard] = useState(false);
+  const [hasSeenVictory, setHasSeenVictory] = useState(false);
+  
+  // Streaks
+  const { recordCompletion } = useStreaks();
 
   useEffect(() => {
     setMounted(true);
-  }, []);
+    // Load proof pic if exists
+    const savedPic = getProofPic(challengeId);
+    if (savedPic) {
+      setProofPicUrl(savedPic);
+    }
+  }, [challengeId]);
+
+  // Show victory celebration for winners
+  useEffect(() => {
+    if (challenge?.settled && hasCompleted && hasJoined && !hasSeenVictory) {
+      const victoryKey = `stride_victory_seen_${challengeId.toString()}`;
+      const seen = localStorage.getItem(victoryKey);
+      if (!seen) {
+        setShowVictory(true);
+        setHasSeenVictory(true);
+        localStorage.setItem(victoryKey, "true");
+      }
+    }
+  }, [challenge?.settled, hasCompleted, hasJoined, challengeId, hasSeenVictory]);
 
   useEffect(() => {
     if (joinSuccess || markSuccess || settleSuccess || voteCancelSuccess || creatorCancelSuccess || earlySettleSuccess) {
@@ -137,6 +171,18 @@ export function ChallengeDetail({ challengeId }: ChallengeDetailProps) {
     return () => clearInterval(interval);
   }, [challenge]);
 
+  // Define handlers that use hooks before any conditional returns
+  const handleCameraCapture = useCallback((imageUrl: string) => {
+    setProofPicUrl(imageUrl);
+    setShowCamera(false);
+    // Now mark as completed
+    markCompleted(challengeId);
+    // Record streak
+    recordCompletion();
+    // Fire confetti!
+    fireConfetti();
+  }, [challengeId, markCompleted, recordCompletion]);
+
   if (!mounted || isLoading || !challenge) {
     return (
       <div className="space-y-6">
@@ -168,7 +214,15 @@ export function ChallengeDetail({ challengeId }: ChallengeDetailProps) {
   };
 
   const handleComplete = () => {
+    // Open camera first for proof pic
+    setShowCamera(true);
+  };
+
+  const handleSkipPhoto = () => {
+    setShowCamera(false);
     markCompleted(challengeId);
+    recordCompletion();
+    fireConfetti();
   };
 
   const handleSettle = () => {
@@ -427,26 +481,35 @@ export function ChallengeDetail({ challengeId }: ChallengeDetailProps) {
                 </svg>
               </div>
               <h3 className="text-lg font-bold mb-2">Finished Your Run?</h3>
-              <p className="text-stride-muted mb-6">
-                Mark your completion to claim your share of the prize pool!
+              <p className="text-stride-muted mb-4">
+                Take a proof pic and claim your share of the prize pool!
               </p>
+              
+              {/* Streak Badge */}
+              <div className="flex justify-center mb-4">
+                <StreakBadge />
+              </div>
+              
               <button
                 onClick={handleComplete}
                 disabled={isMarking || isMarkConfirming}
-                className="btn-primary w-full text-lg py-4"
+                className="btn-primary w-full text-lg py-4 flex items-center justify-center gap-3"
               >
                 {isMarkConfirming ? (
-                  <span className="flex items-center justify-center gap-2">
+                  <>
                     <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                     Confirming...
-                  </span>
+                  </>
                 ) : isMarking ? (
-                  <span className="flex items-center justify-center gap-2">
+                  <>
                     <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                     Submitting...
-                  </span>
+                  </>
                 ) : (
-                  "✓ I Finished My Run!"
+                  <>
+                    <span className="text-xl">📸</span>
+                    Take Proof Pic & Complete
+                  </>
                 )}
               </button>
             </div>
@@ -460,9 +523,25 @@ export function ChallengeDetail({ challengeId }: ChallengeDetailProps) {
                 </svg>
               </div>
               <h3 className="text-lg font-bold mb-2 text-green-400">You&apos;re All Set! 🎉</h3>
-              <p className="text-stride-muted">
+              <p className="text-stride-muted mb-4">
                 Wait for the challenge to end, then settle to claim your winnings.
               </p>
+              
+              {/* Show proof pic if taken */}
+              {proofPicUrl && (
+                <div className="mt-4">
+                  <ProofPicDisplay 
+                    challengeId={challengeId} 
+                    imageUrl={proofPicUrl}
+                    className="max-w-xs mx-auto aspect-[3/4]"
+                  />
+                </div>
+              )}
+              
+              {/* Streak Badge */}
+              <div className="flex justify-center mt-4">
+                <StreakBadge showDetails />
+              </div>
             </div>
           )}
 
@@ -506,19 +585,68 @@ export function ChallengeDetail({ challengeId }: ChallengeDetailProps) {
 
       {/* Settled State */}
       {challenge.settled && (
-        <div className="card border-green-500/30 text-center bg-green-500/5">
-          <div className="w-20 h-20 bg-gradient-to-br from-green-400 to-emerald-500 rounded-2xl flex items-center justify-center mx-auto mb-4">
-            <svg className="w-10 h-10 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
+        <div className="space-y-4">
+          <div className="card border-green-500/30 text-center bg-green-500/5">
+            <div className="w-20 h-20 bg-gradient-to-br from-green-400 to-emerald-500 rounded-2xl flex items-center justify-center mx-auto mb-4">
+              <svg className="w-10 h-10 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <h2 className="text-xl font-bold mb-2">Challenge Complete!</h2>
+            <p className="text-stride-muted mb-4">
+              {completerCount > 0 
+                ? `${completerCount} winner${completerCount !== 1 ? "s" : ""} split ${poolEth} ETH`
+                : "All participants were refunded"
+              }
+            </p>
+            
+            {/* Winner's winnings */}
+            {hasCompleted && completerCount > 0 && (
+              <div className="bg-green-500/10 border border-green-500/30 rounded-xl p-4 mb-4 inline-block">
+                <p className="text-sm text-green-400 mb-1">You earned</p>
+                <p className="text-2xl font-bold text-green-400">
+                  {(Number(poolEth) / completerCount).toFixed(4)} ETH
+                </p>
+              </div>
+            )}
+
+            {/* Share button */}
+            <button
+              onClick={() => setShowShareCard(true)}
+              className="btn-primary px-8 py-3 inline-flex items-center gap-2"
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+              </svg>
+              Share Your Achievement
+            </button>
           </div>
-          <h2 className="text-xl font-bold mb-2">Challenge Complete!</h2>
-          <p className="text-stride-muted">
-            {completerCount > 0 
-              ? `${completerCount} winner${completerCount !== 1 ? "s" : ""} split ${poolEth} ETH`
-              : "All participants were refunded"
-            }
-          </p>
+
+          {/* Hype Reactions */}
+          <ReactionBar challengeId={challengeId} />
+
+          {/* Rematch Card */}
+          {!showRematchCard ? (
+            <button
+              onClick={() => setShowRematchCard(true)}
+              className="w-full p-4 bg-gradient-to-r from-stride-purple/10 to-pink-500/10 border border-stride-purple/20 rounded-xl hover:border-stride-purple/40 transition-colors flex items-center justify-center gap-3"
+            >
+              <svg className="w-5 h-5 text-stride-purple" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              <span className="font-medium text-stride-purple">Want a rematch?</span>
+            </button>
+          ) : (
+            <RematchCard
+              groupId={BigInt(challenge.groupId || 0)}
+              stakeAmount={stakeEth}
+              currency="ETH"
+              duration={Number(challenge.endTime) - Math.floor(Date.now() / 1000) + 86400}
+              description={challenge.description || `Challenge #${challengeId}`}
+              participantCount={participantCount}
+              onClose={() => setShowRematchCard(false)}
+            />
+          )}
         </div>
       )}
 
@@ -757,6 +885,49 @@ export function ChallengeDetail({ challengeId }: ChallengeDetailProps) {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Camera Modal */}
+      {showCamera && (
+        <div className="fixed inset-0 z-50">
+          <ProofPicCamera
+            challengeId={challengeId}
+            onCapture={handleCameraCapture}
+            onClose={() => setShowCamera(false)}
+          />
+          {/* Skip photo option */}
+          <button
+            onClick={handleSkipPhoto}
+            className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 px-6 py-2 bg-white/10 hover:bg-white/20 rounded-full text-sm transition-colors"
+          >
+            Skip Photo
+          </button>
+        </div>
+      )}
+
+      {/* Victory Celebration Modal */}
+      {showVictory && completerCount > 0 && (
+        <VictoryCelebration
+          winAmount={(Number(poolEth) / completerCount).toFixed(4)}
+          currency="ETH"
+          onClose={() => setShowVictory(false)}
+        />
+      )}
+
+      {/* Share Card Modal */}
+      {showShareCard && (
+        <ShareCard
+          challengeId={challengeId}
+          description={challenge.description || `Challenge #${challengeId}`}
+          stakeAmount={stakeEth}
+          currency="ETH"
+          participantCount={participantCount}
+          completerCount={completerCount}
+          winAmount={hasCompleted && completerCount > 0 ? (Number(poolEth) / completerCount).toFixed(4) : undefined}
+          isWinner={hasCompleted && challenge.settled}
+          participants={participants ? [...participants] : undefined}
+          onClose={() => setShowShareCard(false)}
+        />
       )}
     </div>
   );

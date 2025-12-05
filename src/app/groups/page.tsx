@@ -63,7 +63,7 @@ export default function GroupsPage() {
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6 mb-8">
           <div>
             <h1 className="text-3xl md:text-4xl font-bold mb-2">
-              <span className="bg-gradient-to-r from-stride-purple to-pink-500 bg-clip-text text-transparent">Friend Groups</span>
+              <span className="bg-gradient-to-r from-stride-purple to-pink-500 bg-clip-text text-transparent">Fitness Groups</span>
             </h1>
             <p className="text-white/50">
               Create or join groups to compete with friends and track progress together.

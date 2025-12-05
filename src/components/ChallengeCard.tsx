@@ -74,6 +74,11 @@ export function ChallengeCard({ challengeId }: ChallengeCardProps) {
       </div>
     );
   }
+
+  // TypeScript guard - challenge is defined after loading check
+  if (!challenge) {
+    return null;
+  }
   
   // Skip cancelled challenges
   if (challenge.cancelled) {

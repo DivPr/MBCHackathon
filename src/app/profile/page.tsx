@@ -28,17 +28,14 @@ function MiniChallengeCard({ challengeId, userAddress }: { challengeId: bigint; 
   const stakeEth = formatEther(challenge.stakeAmount);
   
   // Determine status
-  let status: "active" | "completed" | "settled" | "lost" = "active";
   let statusColor = "text-blue-400 bg-blue-500/10 border-blue-500/30";
   let statusText = "Active";
   
   if (challenge.settled) {
     if (hasCompleted) {
-      status = "completed";
       statusColor = "text-green-400 bg-green-500/10 border-green-500/30";
       statusText = "Won";
     } else {
-      status = "lost";
       statusColor = "text-red-400 bg-red-500/10 border-red-500/30";
       statusText = "Lost";
     }
@@ -82,7 +79,7 @@ function MiniChallengeCard({ challengeId, userAddress }: { challengeId: bigint; 
 }
 
 // User challenges list component
-function UserChallengesList({ userAddress, filter }: { userAddress?: `0x${string}`; filter: "active" | "past" | "all" }) {
+function UserChallengesList({ userAddress }: { userAddress?: `0x${string}` }) {
   const { data: challengeCount } = useChallengeCount();
   const [isLoading, setIsLoading] = useState(true);
 
@@ -664,7 +661,7 @@ export default function ProfilePage() {
                 <p className="text-xs text-stride-muted mb-4">
                   Challenges you&apos;ve participated in. Cancelled challenges are not shown and don&apos;t count toward stats.
                 </p>
-                <UserChallengesList userAddress={address} filter="all" />
+                <UserChallengesList userAddress={address} />
               </div>
             )}
 
