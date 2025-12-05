@@ -4,7 +4,7 @@ import { useAccount } from "wagmi";
 import Link from "next/link";
 import { ConnectButton } from "@/components/ConnectButton";
 import { Navbar } from "@/components/Navbar";
-import { PoweredByCircle, CircleLogo } from "@/components/USDCStakeButton";
+import { CircleLogo } from "@/components/USDCStakeButton";
 import { useState, useEffect } from "react";
 
 export default function Home() {
@@ -20,194 +20,225 @@ export default function Home() {
       <Navbar />
 
       {/* Hero Section */}
-      <section className="max-w-5xl mx-auto px-4 py-12 md:py-20">
-        <div className="text-center mb-12">
-          <div className="inline-flex items-center gap-2 px-4 py-2 bg-stride-purple/10 border border-stride-purple/30 rounded-full text-sm text-stride-purple mb-6">
-            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
-            </svg>
-            Built on Base
+      <section className="max-w-6xl mx-auto px-4 pt-16 pb-24">
+        <div className="text-center mb-16">
+          {/* Badge */}
+          <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/5 backdrop-blur-sm border border-white/10 rounded-full text-sm mb-8">
+            <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
+            <span className="text-white/70">Live on</span>
+            <span className="font-semibold text-white">Base Sepolia</span>
           </div>
-          <h1 className="text-4xl md:text-6xl font-bold mb-6 leading-tight">
-            Run Together,
+
+          {/* Main Heading */}
+          <h1 className="text-5xl md:text-7xl font-bold mb-6 leading-[1.1] tracking-tight">
+            Run Together.
             <br />
-            <span className="gradient-text">Win Together</span>
+            <span className="bg-gradient-to-r from-stride-purple via-pink-500 to-orange-400 bg-clip-text text-transparent">
+              Win Together.
+            </span>
           </h1>
-          <p className="text-stride-muted text-lg md:text-xl max-w-2xl mx-auto mb-8">
-            Create fitness challenges with friends. Stake USDC to stay accountable.
+
+          {/* Subheading */}
+          <p className="text-white/60 text-lg md:text-xl max-w-2xl mx-auto mb-10 leading-relaxed">
+            Create fitness challenges with friends. Stake USDC to stay accountable. 
             Complete your goal and split the prize pool.
           </p>
-          <div className="flex justify-center mb-6">
-            <PoweredByCircle />
-          </div>
-          
+
+          {/* CTA Buttons */}
           {mounted && (
-            <Link
-              href="/groups"
-              className="btn-primary text-lg px-8 py-4 inline-flex items-center gap-2"
-            >
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
-              </svg>
-              {isConnected ? "Go to Groups" : "Get Started"}
-            </Link>
-          )}
-        </div>
-
-        {/* Stats Bar */}
-        <div className="grid grid-cols-3 gap-3 md:gap-4 mb-12">
-          <div className="card text-center py-4 md:py-6 border-white/10">
-            <div className="w-10 h-10 mx-auto mb-2 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-xl flex items-center justify-center">
-              <svg className="w-5 h-5 text-white" viewBox="0 0 111 111" fill="none">
-                <path d="M54.921 110.034C85.359 110.034 110.034 85.402 110.034 55.017C110.034 24.6319 85.359 0 54.921 0C26.0432 0 2.35281 22.1714 0 50.3923H72.8467V59.6416H0C2.35281 87.8625 26.0432 110.034 54.921 110.034Z" fill="white"/>
-              </svg>
-            </div>
-            <div className="text-lg md:text-xl font-bold mb-1">Base</div>
-            <div className="text-xs md:text-sm text-stride-muted">Sepolia Testnet</div>
-          </div>
-          <div className="card text-center py-4 md:py-6 border-usdc-blue/30 bg-usdc-blue/5">
-            <div className="w-10 h-10 mx-auto mb-2 bg-usdc-blue rounded-xl flex items-center justify-center">
-              <CircleLogo className="w-6 h-6" />
-            </div>
-            <div className="text-lg md:text-xl font-bold mb-1 text-usdc-blue">USDC</div>
-            <div className="text-xs md:text-sm text-stride-muted">Powered by Circle</div>
-          </div>
-          <div className="card text-center py-4 md:py-6 border-white/10">
-            <div className="w-10 h-10 mx-auto mb-2 bg-gradient-to-br from-green-500 to-emerald-500 rounded-xl flex items-center justify-center">
-              <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            </div>
-            <div className="text-lg md:text-xl font-bold text-green-400 mb-1">0%</div>
-            <div className="text-xs md:text-sm text-stride-muted">Platform Fee</div>
-          </div>
-        </div>
-
-        {/* Main CTA Card */}
-        {mounted && (
-          <div className="card text-center py-12 border-white/10 mb-12">
-            <div className="w-20 h-20 bg-gradient-to-br from-stride-purple/20 to-pink-500/20 rounded-2xl flex items-center justify-center mx-auto mb-6 animate-float">
-              <svg className="w-10 h-10 text-stride-purple" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
-              </svg>
-            </div>
-            <h2 className="text-2xl font-bold mb-4">Compete with Friends</h2>
-            <p className="text-stride-muted mb-8 max-w-md mx-auto">
-              {isConnected 
-                ? "Join or create a group to start challenges with your friends. Compete on leaderboards and win together!"
-                : "Connect your wallet to create groups, start challenges, and compete with friends on leaderboards."
-              }
-            </p>
-            <div className="flex justify-center gap-4">
-              {!isConnected ? (
-                <ConnectButton />
-              ) : (
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-12">
+              {isConnected ? (
                 <>
-                  <Link href="/groups" className="btn-primary px-6 py-3 flex items-center gap-2">
-                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                    </svg>
-                    Create Group
+                  <Link
+                    href="/groups"
+                    className="group relative px-8 py-4 bg-gradient-to-r from-stride-purple to-pink-500 rounded-2xl font-semibold text-lg transition-all hover:shadow-lg hover:shadow-stride-purple/25 hover:-translate-y-0.5"
+                  >
+                    <span className="flex items-center gap-2">
+                      Start a Challenge
+                      <svg className="w-5 h-5 group-hover:translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                      </svg>
+                    </span>
                   </Link>
-                  <Link href="/groups" className="btn-secondary px-6 py-3 flex items-center gap-2">
-                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                    </svg>
+                  <Link
+                    href="/groups"
+                    className="px-8 py-4 bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl font-semibold text-lg hover:bg-white/10 transition-all"
+                  >
                     Browse Groups
                   </Link>
                 </>
+              ) : (
+                <Link
+                  href="/groups"
+                  className="group relative px-8 py-4 bg-gradient-to-r from-stride-purple to-pink-500 rounded-2xl font-semibold text-lg transition-all hover:shadow-lg hover:shadow-stride-purple/25 hover:-translate-y-0.5"
+                >
+                  <span className="flex items-center gap-2">
+                    Get Started
+                    <svg className="w-5 h-5 group-hover:translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                    </svg>
+                  </span>
+                </Link>
               )}
             </div>
+          )}
+
+          {/* Trust Badges */}
+          <div className="flex items-center justify-center gap-6 flex-wrap">
+            <div className="flex items-center gap-2 text-white/40 text-sm">
+              <svg className="w-4 h-4" viewBox="0 0 111 111" fill="currentColor">
+                <path d="M54.921 110.034C85.359 110.034 110.034 85.402 110.034 55.017C110.034 24.6319 85.359 0 54.921 0C26.0432 0 2.35281 22.1714 0 50.3923H72.8467V59.6416H0C2.35281 87.8625 26.0432 110.034 54.921 110.034Z"/>
+              </svg>
+              Built on Base
+            </div>
+            <div className="w-1 h-1 bg-white/20 rounded-full" />
+            <div className="flex items-center gap-2 text-usdc-blue text-sm">
+              <CircleLogo className="w-4 h-4" />
+              Powered by Circle
+            </div>
+            <div className="w-1 h-1 bg-white/20 rounded-full" />
+            <div className="flex items-center gap-2 text-white/40 text-sm">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+              </svg>
+              0% Platform Fee
+            </div>
+          </div>
+        </div>
+
+        {/* Feature Cards */}
+        <div className="grid md:grid-cols-3 gap-6 mb-20">
+          {[
+            {
+              icon: (
+                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+              ),
+              title: "Group Challenges",
+              description: "Create challenges within friend groups. Compete together and track everyone's progress.",
+              gradient: "from-stride-purple to-violet-600"
+            },
+            {
+              icon: <CircleLogo className="w-6 h-6" />,
+              title: "USDC Staking",
+              description: "Stake real money with Circle USDC. Price stability means your $5 stake stays at $5.",
+              gradient: "from-usdc-blue to-blue-400"
+            },
+            {
+              icon: (
+                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                </svg>
+              ),
+              title: "Leaderboards",
+              description: "Track your ranking among friends. Build win streaks and climb to the top.",
+              gradient: "from-yellow-500 to-orange-500"
+            }
+          ].map((feature, i) => (
+            <div
+              key={i}
+              className="group relative p-6 bg-white/[0.02] backdrop-blur-sm border border-white/5 rounded-2xl hover:border-white/10 transition-all hover:-translate-y-1"
+            >
+              <div className={`w-12 h-12 bg-gradient-to-br ${feature.gradient} rounded-xl flex items-center justify-center mb-4 text-white`}>
+                {feature.icon}
+              </div>
+              <h3 className="font-semibold text-lg mb-2">{feature.title}</h3>
+              <p className="text-white/50 text-sm leading-relaxed">{feature.description}</p>
+            </div>
+          ))}
+        </div>
+
+        {/* How it Works */}
+        <div className="mb-20">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl font-bold mb-4">How It Works</h2>
+            <p className="text-white/50">Four simple steps to fitness accountability</p>
+          </div>
+          
+          <div className="grid md:grid-cols-4 gap-4">
+            {[
+              { step: "01", title: "Create Group", desc: "Start a fitness group", color: "text-stride-purple" },
+              { step: "02", title: "Set Challenge", desc: "Create a challenge and set the stake", color: "text-usdc-blue" },
+              { step: "03", title: "Complete Goal", desc: "Finish your run and mark completion", color: "text-green-400" },
+              { step: "04", title: "Collect Prize", desc: "Winners split the entire prize pool", color: "text-yellow-400" },
+            ].map((item, i) => (
+              <div key={i} className="relative">
+                {i < 3 && (
+                  <div className="hidden md:block absolute top-8 left-[60%] w-[80%] h-px bg-gradient-to-r from-white/10 to-transparent" />
+                )}
+                <div className="relative p-5 rounded-2xl bg-white/[0.02] border border-white/5">
+                  <span className={`text-4xl font-bold ${item.color} opacity-20`}>{item.step}</span>
+                  <h3 className="font-semibold mt-2 mb-1">{item.title}</h3>
+                  <p className="text-white/40 text-sm">{item.desc}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* CTA Section */}
+        {mounted && !isConnected && (
+          <div className="text-center p-12 rounded-3xl bg-gradient-to-br from-stride-purple/10 to-pink-500/10 border border-stride-purple/20">
+            <h2 className="text-2xl md:text-3xl font-bold mb-4">Ready to Get Started?</h2>
+            <p className="text-white/50 mb-8 max-w-lg mx-auto">
+              Connect your wallet to create groups, start challenges, and compete with friends.
+            </p>
+            <ConnectButton />
+          </div>
+        )}
+
+        {mounted && isConnected && (
+          <div className="text-center p-12 rounded-3xl bg-gradient-to-br from-stride-purple/10 to-pink-500/10 border border-stride-purple/20">
+            <h2 className="text-2xl md:text-3xl font-bold mb-4">You&apos;re Connected! 🎉</h2>
+            <p className="text-white/50 mb-8 max-w-lg mx-auto">
+              Create or join a group to start your first challenge.
+            </p>
+            <Link
+              href="/groups"
+              className="inline-flex items-center gap-2 px-8 py-4 bg-gradient-to-r from-stride-purple to-pink-500 rounded-2xl font-semibold text-lg hover:shadow-lg hover:shadow-stride-purple/25 transition-all"
+            >
+              Go to Groups
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+              </svg>
+            </Link>
           </div>
         )}
       </section>
 
-      {/* How it Works */}
-      <section className="max-w-5xl mx-auto px-4 pb-20">
-        <h2 className="text-2xl font-bold mb-8 text-center">
-          How it Works
-        </h2>
-        <div className="grid md:grid-cols-4 gap-4 md:gap-6">
-          {[
-            { step: "01", title: "Create Group", desc: "Start a fitness group with friends", icon: "M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z", color: "from-stride-purple to-violet-600" },
-            { step: "02", title: "Challenge", desc: "Create a challenge & stake USDC", icon: "M13 10V3L4 14h7v7l9-11h-7z", color: "from-usdc-blue to-blue-400" },
-            { step: "03", title: "Complete", desc: "Finish your fitness goal", icon: "M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z", color: "from-green-500 to-emerald-500" },
-            { step: "04", title: "Win", desc: "Split the prize pool", icon: "M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z", color: "from-yellow-500 to-orange-500" },
-          ].map((item, i) => (
-            <div 
-              key={i} 
-              className="card group hover:border-stride-purple/50 transition-all duration-300 hover:-translate-y-1 border-white/10"
-            >
-              <div className={`w-12 h-12 bg-gradient-to-br ${item.color} rounded-xl flex items-center justify-center mb-4`}>
-                <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={item.icon} />
-                </svg>
-              </div>
-              <div className="flex items-center gap-2 mb-2">
-                <span className="text-stride-purple font-mono text-sm">{item.step}</span>
-              </div>
-              <h3 className="font-bold text-lg mb-2">{item.title}</h3>
-              <p className="text-stride-muted text-sm">{item.desc}</p>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* Features */}
-      <section className="max-w-5xl mx-auto px-4 pb-20">
-        <div className="grid md:grid-cols-2 gap-6">
-          <div className="card border-white/10 hover:border-stride-purple/30 transition-colors">
-            <div className="flex items-start gap-4">
-              <div className="w-12 h-12 bg-gradient-to-br from-stride-purple to-pink-500 rounded-xl flex items-center justify-center shrink-0">
-                <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
-                </svg>
-              </div>
-              <div>
-                <h3 className="font-bold text-lg mb-2">Group Challenges</h3>
-                <p className="text-stride-muted text-sm">
-                  Create and join challenges within your groups. Compete together and stay accountable.
-                </p>
-              </div>
-            </div>
-          </div>
-          <div className="card border-white/10 hover:border-stride-purple/30 transition-colors">
-            <div className="flex items-start gap-4">
-              <div className="w-12 h-12 bg-gradient-to-br from-yellow-500 to-orange-500 rounded-xl flex items-center justify-center shrink-0">
-                <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                </svg>
-              </div>
-              <div>
-                <h3 className="font-bold text-lg mb-2">Leaderboards</h3>
-                <p className="text-stride-muted text-sm">
-                  Track your ranking against friends. Compete to be the top performer in your group.
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
       {/* Footer */}
-      <footer className="border-t border-white/10 py-8">
-        <div className="max-w-5xl mx-auto px-4 flex flex-col md:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-gradient-to-br from-stride-purple to-stride-violet rounded-lg flex items-center justify-center">
-              <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
-              </svg>
+      <footer className="border-t border-white/5 py-8">
+        <div className="max-w-6xl mx-auto px-4">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 bg-gradient-to-br from-stride-purple to-pink-500 rounded-lg flex items-center justify-center">
+                <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+              </div>
+              <span className="font-semibold">Stride</span>
             </div>
-            <span className="font-bold">Stride</span>
-          </div>
-          <div className="flex items-center gap-4 text-stride-muted text-sm">
-            <span>Built for MBC Hackathon 2025</span>
-            <span>•</span>
-            <span className="flex items-center gap-1">
-              Powered by <span className="text-usdc-blue font-medium">Circle USDC</span>
-            </span>
-            <span>•</span>
-            <span>Built on Base</span>
+            <div className="flex items-center gap-6 text-white/40 text-sm">
+              <span>MBC Hackathon 2025</span>
+              <a 
+                href="https://developers.circle.com/" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="flex items-center gap-1.5 hover:text-usdc-blue transition-colors"
+              >
+                <CircleLogo className="w-4 h-4" />
+                Circle USDC
+              </a>
+              <a 
+                href="https://base.org" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="hover:text-white transition-colors"
+              >
+                Base
+              </a>
+            </div>
           </div>
         </div>
       </footer>

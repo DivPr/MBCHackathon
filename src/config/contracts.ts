@@ -1,10 +1,10 @@
 import { Address } from "viem";
 
 // Contract address - update after deployment
-// Localhost Hardhat: 0x610178dA211FEF7D417bC0e6FeD39F05609AD788
+// Localhost Hardhat: 0x3Aa5ebB10DC797CAC828524e59A333d0A371443c
 export const STRIDE_CHALLENGE_ADDRESS: Address =
   ((process.env.NEXT_PUBLIC_CONTRACT_ADDRESS?.trim()) as Address) ||
-  "0x610178dA211FEF7D417bC0e6FeD39F05609AD788";
+  "0x3Aa5ebB10DC797CAC828524e59A333d0A371443c";
 
 // Check if contract is deployed
 export const isContractDeployed = 

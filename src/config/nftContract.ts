@@ -1,10 +1,10 @@
 import { Address } from "viem";
 
 // SimpleBadgeNFT Contract address - update after deployment
-// Localhost Hardhat: 0x0DCd1Bf9A1b36cE34237eEaFef220932846BCD82
+// Localhost Hardhat: 0x4ed7c70F96B99c776995fB64377f0d4aB3B0e1C1
 export const SIMPLE_BADGE_NFT_ADDRESS: Address =
   ((process.env.NEXT_PUBLIC_NFT_CONTRACT_ADDRESS?.trim()) as Address) ||
-  "0x0DCd1Bf9A1b36cE34237eEaFef220932846BCD82";
+  "0x4ed7c70F96B99c776995fB64377f0d4aB3B0e1C1";
 
 // Check if NFT contract is deployed
 export const isNFTContractDeployed =
@@ -145,4 +145,3 @@ export const SIMPLE_BADGE_NFT_ABI = [
     stateMutability: "nonpayable",
   },
 ] as const;
-

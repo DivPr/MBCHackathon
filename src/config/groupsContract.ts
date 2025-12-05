@@ -1,10 +1,10 @@
 import { Address } from "viem";
 
 // Groups contract address - update after deployment
-// Localhost Hardhat: 0xB7f8BC63BbcaD18155201308C8f3540b07f84F5e
+// Localhost Hardhat: 0xc6e7DF5E7b4f2A278906862b61205850344D4e7d
 export const STRIDE_GROUPS_ADDRESS: Address =
   ((process.env.NEXT_PUBLIC_GROUPS_CONTRACT_ADDRESS?.trim()) as Address) ||
-  "0xB7f8BC63BbcaD18155201308C8f3540b07f84F5e";
+  "0xc6e7DF5E7b4f2A278906862b61205850344D4e7d";
 
 export const STRIDE_GROUPS_ABI = [
   // Group Management

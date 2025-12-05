@@ -84,10 +84,21 @@ export default function GroupDetailPage({ params }: { params: Promise<{ id: stri
   if (!group) {
     return (
       <main className="min-h-screen bg-stride-dark flex items-center justify-center">
-        <div className="text-center">
+        <div className="text-center max-w-sm">
+          <div className="w-16 h-16 bg-white/5 rounded-2xl flex items-center justify-center mx-auto mb-6">
+            <svg className="w-8 h-8 text-white/40" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
           <h1 className="text-2xl font-bold mb-2">Group Not Found</h1>
-          <p className="text-stride-muted mb-4">This group doesn&apos;t exist.</p>
-          <Link href="/groups" className="btn-primary">
+          <p className="text-white/50 mb-6">This group doesn&apos;t exist or may have been deleted.</p>
+          <Link 
+            href="/groups" 
+            className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-stride-purple to-pink-500 rounded-xl font-semibold hover:shadow-lg hover:shadow-stride-purple/25 transition-all"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
             Back to Groups
           </Link>
         </div>
@@ -95,15 +106,26 @@ export default function GroupDetailPage({ params }: { params: Promise<{ id: stri
     );
   }
 
-  const [, name, description, creator, memberCount, challengeCount, createdAt, isPrivate, deleted] = group;
+  const [, name, description, creator, memberCount, challengeCount, , isPrivate, deleted] = group;
   
   if (deleted) {
     return (
       <main className="min-h-screen bg-stride-dark flex items-center justify-center">
-        <div className="text-center">
+        <div className="text-center max-w-sm">
+          <div className="w-16 h-16 bg-red-500/10 rounded-2xl flex items-center justify-center mx-auto mb-6">
+            <svg className="w-8 h-8 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+          </div>
           <h1 className="text-2xl font-bold mb-2">Group Deleted</h1>
-          <p className="text-stride-muted mb-4">This group has been deleted.</p>
-          <Link href="/groups" className="btn-primary">
+          <p className="text-white/50 mb-6">This group has been deleted by its creator.</p>
+          <Link 
+            href="/groups" 
+            className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-stride-purple to-pink-500 rounded-xl font-semibold hover:shadow-lg hover:shadow-stride-purple/25 transition-all"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
             Back to Groups
           </Link>
         </div>
@@ -134,8 +156,11 @@ export default function GroupDetailPage({ params }: { params: Promise<{ id: stri
 
       <div className="max-w-5xl mx-auto px-4 py-8">
         {/* Back Link */}
-        <Link href="/groups" className="inline-flex items-center gap-2 text-stride-muted hover:text-white transition-colors mb-6 text-sm">
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <Link 
+          href="/groups" 
+          className="inline-flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-white/70 hover:text-white transition-all mb-6 text-sm group"
+        >
+          <svg className="w-4 h-4 group-hover:-translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
           </svg>
           Back to Groups

@@ -6,8 +6,10 @@ import {
   STRIDE_USDC_CHALLENGE_ADDRESS,
   STRIDE_USDC_CHALLENGE_ABI,
   ERC20_ABI,
+  MOCK_USDC_ABI,
   parseUSDC,
   USDC_DECIMALS,
+  isUSDCContractDeployed,
 } from "@/config/usdcContract";
 
 // ============ USDC Token Hooks ============
@@ -431,5 +433,39 @@ export function formatUSDCBalance(balance: bigint | undefined): string {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
+}
+
+/**
+ * Get testnet USDC from MockUSDC faucet (localhost only)
+ * Mints 1000 USDC to the caller
+ */
+export function useUSDCFaucet() {
+  const { writeContract, data: hash, isPending, error } = useWriteContract();
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash });
+
+  const claimFaucet = async () => {
+    writeContract({
+      address: USDC_ADDRESS,
+      abi: MOCK_USDC_ABI,
+      functionName: "faucet",
+      args: [],
+    });
+  };
+
+  return {
+    claimFaucet,
+    isPending,
+    isConfirming,
+    isSuccess,
+    error,
+    hash,
+  };
+}
+
+/**
+ * Check if USDC contract is deployed
+ */
+export function useIsUSDCDeployed() {
+  return isUSDCContractDeployed;
 }
 

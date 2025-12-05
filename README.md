@@ -1,10 +1,65 @@
 # Stride - Social Fitness Challenges on Base
 
-A social fitness challenge app where friends commit to running goals, stake USDC, prove they completed the run, and the pot is automatically distributed to winners.
+<p align="center">
+  <img src="https://img.shields.io/badge/Built%20on-Base-0052FF?style=for-the-badge&logo=ethereum" alt="Built on Base" />
+  <img src="https://img.shields.io/badge/Powered%20by-Circle%20USDC-2775CA?style=for-the-badge" alt="Powered by Circle USDC" />
+  <img src="https://img.shields.io/badge/MBC-Hackathon%202025-A855F7?style=for-the-badge" alt="MBC Hackathon 2025" />
+</p>
 
-Built on **Base** for the MBC Hackathon.
+A social fitness challenge app where friends commit to running goals, stake ETH or USDC, prove they completed the run, and the pot is automatically distributed to winners.
 
-![Stride App](https://base.org/images/base-open-graph.png)
+**Built on Base for the MBC Hackathon • Base Track + Circle USDC Bounty**
+
+---
+
+## Table of Contents
+
+1. [Overview](#overview)
+2. [Problem & Solution](#problem--solution)
+3. [Circle USDC Integration](#-circle-usdc-integration-bounty-submission)
+4. [Features](#features)
+5. [Tech Stack](#tech-stack)
+6. [Architecture](#architecture)
+7. [Quick Start](#quick-start)
+   - [Local Development](#local-development)
+   - [Base Sepolia Deployment](#base-sepolia-deployment)
+8. [Smart Contracts](#smart-contracts)
+9. [User Flows](#user-flows)
+10. [Deployed Contract Addresses](#deployed-contract-addresses)
+11. [Resources](#resources)
+12. [License](#license)
+
+---
+
+## Overview
+
+**Stride** is a decentralized fitness accountability platform that leverages blockchain-based financial incentives to help users achieve their fitness goals. Users create or join challenges, stake cryptocurrency (ETH or USDC), and winners who complete their goals split the pot.
+
+### Why Base?
+
+- **Low Fees**: Transaction costs are minimal, making small stakes viable
+- **Fast Finality**: Quick confirmation times for seamless UX
+- **EVM Compatible**: Full Solidity support with familiar tooling
+- **Coinbase Ecosystem**: Integration with Coinbase Smart Wallet for easy onboarding
+
+---
+
+## Problem & Solution
+
+### The Problem
+- **80% of New Year's resolutions fail** by February
+- People struggle with fitness accountability
+- Traditional fitness apps lack real skin-in-the-game incentives
+- Cross-border participation is difficult with fiat currencies
+
+### Our Solution
+**Stride** creates social accountability with financial stakes:
+- Put real money on the line with friends
+- Complete your fitness goal or lose your stake
+- Winners are rewarded with a share of the losers' stakes
+- Global participation via USDC (dollar-denominated)
+
+---
 
 ## 🏆 Circle USDC Integration (Bounty Submission)
 
@@ -12,10 +67,12 @@ Built on **Base** for the MBC Hackathon.
 
 ### Why USDC for Fitness Challenges?
 
-- **Price Stability**: Users stake a predictable dollar amount (e.g., $5 USDC) rather than volatile crypto
-- **Global Accessibility**: Anyone worldwide can participate with dollar-equivalent stakes
-- **Low Fees on Base**: Circle's native USDC on Base means minimal transaction costs
-- **Real-World Payments**: Demonstrates practical payment automation use case
+| Benefit | Description |
+|---------|-------------|
+| **Price Stability** | Users stake a predictable dollar amount (e.g., $5 USDC) rather than volatile crypto |
+| **Global Accessibility** | Anyone worldwide can participate with dollar-equivalent stakes |
+| **Low Fees on Base** | Circle's native USDC on Base means minimal transaction costs |
+| **Real-World Payments** | Demonstrates practical payment automation use case |
 
 ### Circle Integration Features
 
@@ -25,6 +82,7 @@ Built on **Base** for the MBC Hackathon.
 | **ERC20 Approvals** | Smart approval flow with "Approve Max" option |
 | **Prize Distribution** | Winners automatically receive USDC payouts |
 | **Charity Donations** | Unclaimed pools donated to charity in USDC |
+| **Testnet Faucet** | Built-in MockUSDC faucet for local development |
 
 ### Smart Contract: `StrideUSDCChallengeManager.sol`
 
@@ -50,44 +108,75 @@ function createChallenge(
 
 ## Features
 
-- 🏃 Create fitness challenges with custom goals
-- 💵 Stake **USDC** to stay accountable (powered by Circle)
-- 👥 Invite friends to join challenges
-- ✅ Mark completion and prove your run
-- 🏆 Winners split the prize pool automatically
-- 🔗 Built on Base for low fees and fast transactions
+- 🏃 **Create Challenges** - Set custom fitness goals with descriptions
+- 💵 **Dual Currency** - Stake ETH or USDC (Circle integration)
+- 👥 **Group Challenges** - Create and join groups with friends
+- 🎯 **Leaderboards** - Track group member performance and win streaks
+- ✅ **Proof of Completion** - Mark runs as complete on-chain
+- 🏆 **Auto Settlement** - Smart contract distributes prizes automatically
+- 🎨 **NFT Badges** - On-chain SVG achievement badges
+- ⏱️ **Early Settlement** - Vote to end challenges early (consensus)
+- 🔄 **Refund Voting** - Democratic cancellation with full refunds
+
+---
 
 ## Tech Stack
 
 ### Frontend
-- **Next.js 15** with TypeScript
-- **Tailwind CSS** for styling
-- **wagmi + viem** for Web3 interactions
-- **Coinbase Wallet** integration (Smart Wallet)
+- **Next.js 15** with TypeScript & App Router
+- **Tailwind CSS** for modern styling
+- **wagmi v2 + viem** for Web3 interactions
+- **Coinbase Wallet** integration (Smart Wallet ready)
 
 ### Smart Contracts
 - **Solidity 0.8.24** with OpenZeppelin
-- **Hardhat** for development and testing
+- **Hardhat** for development, testing, and deployment
 - **Circle USDC** integration (ERC20)
-- Deployed on **Base Sepolia**
+- **On-chain SVG** NFT generation
 
-## Project Structure
+### Networks
+- **Base Sepolia** (Testnet)
+- **Hardhat** (Local development)
+
+---
+
+## Architecture
 
 ```
-├── src/
-│   ├── app/                 # Next.js App Router pages
-│   ├── components/
-│   │   └── USDCStakeButton.tsx  # USDC approval & staking UI
-│   ├── config/
-│   │   └── usdcContract.ts      # Circle USDC configuration
-│   └── hooks/
-│       └── useUSDC.ts           # USDC hooks (balance, approval, staking)
-├── contracts/
-│   ├── contracts/
-│   │   └── StrideUSDCChallengeManager.sol  # USDC-based challenges
-│   └── scripts/
-│       └── deployUSDC.ts        # USDC contract deployment
+┌─────────────────────────────────────────────────────────────────┐
+│                         Frontend (Next.js)                       │
+├─────────────────────────────────────────────────────────────────┤
+│  wagmi hooks │ USDC Components │ Challenge UI │ Group UI │ NFTs │
+└───────────────────────────┬─────────────────────────────────────┘
+                            │
+                    ┌───────▼───────┐
+                    │  wagmi/viem   │
+                    └───────┬───────┘
+                            │
+┌───────────────────────────▼─────────────────────────────────────┐
+│                     Base (L2 Ethereum)                           │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  ┌──────────────────────┐  ┌───────────────────────────────┐    │
+│  │ StrideChallengeManager│  │ StrideUSDCChallengeManager    │    │
+│  │      (ETH stakes)     │  │   (Circle USDC stakes)        │    │
+│  └──────────┬───────────┘  └──────────────┬────────────────┘    │
+│             │                              │                     │
+│             │         ┌────────────────────┼───────────────┐     │
+│             └────────►│   StrideGroups     │◄──────────────┘     │
+│                       │ (Leaderboards &    │                     │
+│                       │  Group Management) │                     │
+│                       └────────────────────┘                     │
+│                                                                  │
+│  ┌────────────────────┐   ┌──────────────────────────────────┐  │
+│  │   SimpleBadgeNFT   │   │  Circle USDC Token (ERC20)       │  │
+│  │  (On-chain SVG)    │   │  0x036CbD53842c5426634e7929...   │  │
+│  └────────────────────┘   └──────────────────────────────────┘  │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
 ```
+
+---
 
 ## Quick Start
 
@@ -96,9 +185,15 @@ function createChallenge(
 - A wallet with Base Sepolia ETH ([Faucet](https://www.alchemy.com/faucets/base-sepolia))
 - Testnet USDC from [Circle Faucet](https://faucet.circle.com/)
 
-### 1. Install Dependencies
+### Local Development
+
+#### 1. Install Dependencies
 
 ```bash
+# Clone the repository
+git clone https://github.com/your-username/stride.git
+cd stride
+
 # Install frontend dependencies
 npm install
 
@@ -106,41 +201,46 @@ npm install
 cd contracts && npm install && cd ..
 ```
 
-### 2. Deploy Smart Contracts
+#### 2. Start Local Blockchain
 
 ```bash
 cd contracts
 
-# Create .env file
-cp .env.example .env
-# Add your private key to .env
-
-# Compile contracts
-npm run compile
-
-# Deploy USDC Challenge Manager to Base Sepolia
-npm run deploy:usdc:sepolia
+# Start Hardhat node (keep this running)
+npx hardhat node
 ```
 
-### 3. Configure Frontend
+#### 3. Deploy Contracts (New Terminal)
 
-Create a `.env.local` file in the root directory:
+```bash
+cd contracts
+
+# Deploy all contracts including MockUSDC
+npx hardhat run scripts/deployAll.ts --network localhost
+```
+
+You'll see output like:
+```
+📋 Contract Addresses:
+┌────────────────────────────────────────────────────────────┐
+│ StrideChallengeManager (ETH):  0x3Aa5ebB10DC797CAC828524...│
+│ StrideGroups:                  0xc6e7DF5E7b4f2A278906862...│
+│ SimpleBadgeNFT:                0x4ed7c70F96B99c776995fB6...│
+│ USDC Token:                    0xa85233C63b9Ee964Add6F2c...│
+│ StrideUSDCChallengeManager:    0x4A679253410272dd5232B3F...│
+└────────────────────────────────────────────────────────────┘
+```
+
+#### 4. Configure Environment
+
+Create `.env.local` in the project root:
 
 ```env
-# USDC Challenge Manager (from deployment output)
-NEXT_PUBLIC_USDC_CONTRACT_ADDRESS=0x...
-
-# Circle USDC on Base Sepolia
-NEXT_PUBLIC_USDC_ADDRESS=0x036CbD53842c5426634e7929541eC2318f3dCF7e
-
-# Optional: ETH-based contract
-NEXT_PUBLIC_CONTRACT_ADDRESS=0x...
-
-# WalletConnect
-NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID=your_project_id
+# Enable local development mode
+NEXT_PUBLIC_LOCAL_DEV=true
 ```
 
-### 4. Run the App
+#### 5. Run Frontend
 
 ```bash
 npm run dev
@@ -148,68 +248,180 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000)
 
+#### 6. Connect Wallet
+
+1. Add Hardhat Network to MetaMask:
+   - Network Name: `Hardhat`
+   - RPC URL: `http://127.0.0.1:8545`
+   - Chain ID: `31337`
+   - Currency Symbol: `ETH`
+
+2. Import a test account from Hardhat (use one of the private keys shown when starting the node)
+
+---
+
+### Base Sepolia Deployment
+
+#### 1. Configure Deployment
+
+Create `contracts/.env`:
+
+```env
+PRIVATE_KEY=your_wallet_private_key
+BASE_SEPOLIA_RPC=https://sepolia.base.org
+```
+
+#### 2. Deploy to Base Sepolia
+
+```bash
+cd contracts
+
+# Deploy all contracts
+npx hardhat run scripts/deployAll.ts --network baseSepolia
+```
+
+#### 3. Update Frontend Config
+
+Update `.env.local`:
+
+```env
+# Remove local dev flag for production
+# NEXT_PUBLIC_LOCAL_DEV=true
+
+# Contract addresses from deployment
+NEXT_PUBLIC_CONTRACT_ADDRESS=0x...
+NEXT_PUBLIC_GROUPS_CONTRACT_ADDRESS=0x...
+NEXT_PUBLIC_NFT_CONTRACT_ADDRESS=0x...
+NEXT_PUBLIC_USDC_CONTRACT_ADDRESS=0x...
+NEXT_PUBLIC_USDC_ADDRESS=0x036CbD53842c5426634e7929541eC2318f3dCF7e
+```
+
+---
+
 ## Smart Contracts
 
-### StrideUSDCChallengeManager (Powered by Circle)
+### Contract Overview
 
-The main USDC-based contract handles:
+| Contract | Description |
+|----------|-------------|
+| `StrideChallengeManager.sol` | ETH-based fitness challenges |
+| `StrideUSDCChallengeManager.sol` | Circle USDC-based challenges |
+| `StrideGroups.sol` | Group management & leaderboards |
+| `SimpleBadgeNFT.sol` | On-chain SVG achievement badges |
+| `MockUSDC.sol` | Test USDC token for local development |
 
-- **createChallenge**: Create a challenge by staking USDC
-- **joinChallenge**: Join by staking the required USDC amount
-- **markCompleted**: Mark yourself as having completed the challenge
-- **settleChallenge**: Distribute USDC prize pool after challenge ends
+### Key Functions
+
+#### Create a Challenge
+```solidity
+function createChallenge(
+    uint256 stakeAmount,
+    uint256 duration,
+    string calldata description,
+    uint256 groupId
+) external payable returns (uint256 challengeId)
+```
+
+#### Join a Challenge
+```solidity
+function joinChallenge(uint256 challengeId) external payable
+```
+
+#### Mark Completion
+```solidity
+function markCompleted(uint256 challengeId) external
+```
+
+#### Settle & Distribute
+```solidity
+function settleChallenge(uint256 challengeId) external
+```
 
 ### USDC Approval Flow
 
-1. User enters stake amount
-2. Frontend checks USDC allowance
-3. If insufficient, prompts for approval (single amount or max)
+1. User enters stake amount in the UI
+2. Frontend checks current USDC allowance
+3. If insufficient, prompts for approval transaction
 4. After approval, user can stake USDC
-5. Contract transfers USDC using `SafeERC20`
+5. Contract uses `SafeERC20.safeTransferFrom()` for security
 
 ### Settlement Logic
 
-1. **Winners exist**: Split USDC pool equally among completers
-2. **No winners**: Donate USDC pool to charity address
+| Scenario | Action |
+|----------|--------|
+| Winners exist | Split pool equally among completers |
+| No winners | Refund all participants (for challenge cancellation via unanimous vote) |
+| No winners (timeout) | 10% to charity, 90% refunded |
+
+---
 
 ## User Flows
 
 ### Create a USDC Challenge
 1. Connect wallet
-2. Approve USDC spending (one-time or per-challenge)
-3. Set description (e.g., "5K run")
-4. Choose duration and stake amount (in USDC)
-5. Submit and stake USDC
+2. Navigate to a group or create one
+3. Click "Create Challenge"
+4. Select USDC as currency
+5. Approve USDC spending (one-time or per-challenge)
+6. Set description, duration, and stake amount
+7. Submit transaction
 
 ### Join a Challenge
 1. Browse available challenges
-2. Approve USDC if needed
-3. Click "Join Challenge" and stake USDC
+2. Click "Join Challenge"
+3. Approve USDC if needed
+4. Confirm transaction
 
 ### Complete & Settle
-1. Complete your fitness goal
+1. Complete your fitness goal IRL
 2. Click "I Finished My Run!"
-3. Wait for challenge to end
-4. Anyone can settle to distribute USDC
+3. Wait for challenge deadline
+4. Anyone can click "Settle" to distribute prizes
 
-## Circle Developer Resources
+---
 
+## Deployed Contract Addresses
+
+### Base Sepolia (Testnet)
+
+| Contract | Address |
+|----------|---------|
+| StrideChallengeManager | `TBD after deployment` |
+| StrideUSDCChallengeManager | `TBD after deployment` |
+| StrideGroups | `TBD after deployment` |
+| SimpleBadgeNFT | `TBD after deployment` |
+| Circle USDC | `0x036CbD53842c5426634e7929541eC2318f3dCF7e` |
+
+### Localhost (Hardhat)
+
+Run `npx hardhat run scripts/deployAll.ts --network localhost` to get fresh addresses.
+
+---
+
+## Resources
+
+### Base
+- **Base Docs**: https://docs.base.org/
+- **Base Sepolia Faucet**: https://www.alchemy.com/faucets/base-sepolia
+- **BaseScan**: https://sepolia.basescan.org/
+
+### Circle
 - **Developer Docs**: https://developers.circle.com/
 - **USDC on Base**: https://www.circle.com/en/usdc-multichain/base
 - **Testnet Faucet**: https://faucet.circle.com/
 - **Bridge Kit**: https://developers.circle.com/w3s/bridge-kit
 
-## Network Configuration
+### Network Configuration
 
-- **Network**: Base Sepolia (Testnet)
-- **Chain ID**: 84532
-- **RPC**: https://sepolia.base.org
-- **USDC**: 0x036CbD53842c5426634e7929541eC2318f3dCF7e
+| Property | Value |
+|----------|-------|
+| Network | Base Sepolia (Testnet) |
+| Chain ID | 84532 |
+| RPC URL | https://sepolia.base.org |
+| Explorer | https://sepolia.basescan.org |
+| USDC | 0x036CbD53842c5426634e7929541eC2318f3dCF7e |
 
-## Get Test Assets
-
-- **Base Sepolia ETH**: [Alchemy Faucet](https://www.alchemy.com/faucets/base-sepolia)
-- **Testnet USDC**: [Circle Faucet](https://faucet.circle.com/)
+---
 
 ## License
 
@@ -217,4 +429,6 @@ MIT
 
 ---
 
-**Built for MBC Hackathon 2025 • Powered by Circle USDC • Built on Base**
+<p align="center">
+  <strong>Built for MBC Hackathon 2025 • Powered by Circle USDC • Built on Base</strong>
+</p>

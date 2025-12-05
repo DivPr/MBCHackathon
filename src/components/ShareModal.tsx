@@ -3,19 +3,47 @@
 import { QRCodeSVG } from "qrcode.react";
 import { useState } from "react";
 
-interface ShareModalProps {
+// Support both challenge sharing and generic sharing
+interface ChallengeShareProps {
   challengeId: bigint;
   description: string;
   stakeAmount: string;
   onClose: () => void;
 }
 
-export function ShareModal({ challengeId, description, stakeAmount, onClose }: ShareModalProps) {
+interface GenericShareProps {
+  title: string;
+  url: string;
+  subtitle?: string;
+  onClose: () => void;
+}
+
+type ShareModalProps = ChallengeShareProps | GenericShareProps;
+
+// Type guard to check if it's a challenge share
+function isChallengeShare(props: ShareModalProps): props is ChallengeShareProps {
+  return 'challengeId' in props;
+}
+
+export function ShareModal(props: ShareModalProps) {
   const [copied, setCopied] = useState(false);
+  const { onClose } = props;
+
+  // Derive values based on the share type
+  const isChallenge = isChallengeShare(props);
   
-  const shareUrl = typeof window !== "undefined" 
-    ? `${window.location.origin}/challenge/${challengeId}`
-    : `/challenge/${challengeId}`;
+  const shareUrl = isChallenge
+    ? (typeof window !== "undefined" 
+        ? `${window.location.origin}/challenge/${props.challengeId}`
+        : `/challenge/${props.challengeId}`)
+    : props.url;
+
+  const title = isChallenge ? props.description : props.title;
+  const subtitle = isChallenge ? `${props.stakeAmount} ETH stake` : (props as GenericShareProps).subtitle;
+  const headerTitle = isChallenge ? "Share Challenge" : "Share";
+  const shareText = isChallenge 
+    ? `Join my fitness challenge! Stake ${props.stakeAmount} ETH and let's get moving 🏃`
+    : `Check out "${title}" on Stride!`;
 
   const handleCopy = async () => {
     await navigator.clipboard.writeText(shareUrl);
@@ -27,8 +55,8 @@ export function ShareModal({ challengeId, description, stakeAmount, onClose }: S
     if (navigator.share) {
       try {
         await navigator.share({
-          title: `Stride Challenge: ${description}`,
-          text: `Join my fitness challenge! Stake ${stakeAmount} ETH and let's get moving 🏃`,
+          title: `Stride: ${title}`,
+          text: shareText,
           url: shareUrl,
         });
       } catch {
@@ -53,7 +81,7 @@ export function ShareModal({ challengeId, description, stakeAmount, onClose }: S
             <svg className="w-5 h-5 text-stride-purple" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
             </svg>
-            <h2 className="text-lg font-bold">Share Challenge</h2>
+            <h2 className="text-lg font-bold">{headerTitle}</h2>
           </div>
           <button
             onClick={onClose}
@@ -79,15 +107,19 @@ export function ShareModal({ challengeId, description, stakeAmount, onClose }: S
           </div>
           
           <p className="text-sm text-stride-muted text-center mb-2">
-            Scan to join challenge
+            {isChallenge ? "Scan to join challenge" : "Scan to open"}
           </p>
-          <p className="font-bold text-center mb-1">{description}</p>
-          <p className="text-stride-purple font-mono text-sm flex items-center gap-1">
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            {stakeAmount} ETH stake
-          </p>
+          <p className="font-bold text-center mb-1">{title}</p>
+          {subtitle && (
+            <p className="text-stride-purple font-mono text-sm flex items-center gap-1">
+              {isChallenge && (
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              )}
+              {subtitle}
+            </p>
+          )}
         </div>
 
         {/* URL Copy */}
@@ -136,7 +168,7 @@ export function ShareModal({ challengeId, description, stakeAmount, onClose }: S
           </button>
           
           <p className="text-xs text-stride-muted text-center">
-            Anyone with this link can join and stake
+            {isChallenge ? "Anyone with this link can join and stake" : "Share this link with friends"}
           </p>
         </div>
       </div>

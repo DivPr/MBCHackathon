@@ -5,15 +5,24 @@ import { Address } from "viem";
 // https://developers.circle.com/
 
 // USDC Contract Addresses
+// Localhost Hardhat (MockUSDC): 0xa85233C63b9Ee964Add6F2cffe00Fd84eb32338f
 // Base Sepolia: Official Circle USDC testnet deployment
 export const USDC_ADDRESS: Address = 
   (process.env.NEXT_PUBLIC_USDC_ADDRESS as Address) ||
-  "0x036CbD53842c5426634e7929541eC2318f3dCF7e"; // Base Sepolia USDC
+  "0xa85233C63b9Ee964Add6F2cffe00Fd84eb32338f"; // Localhost MockUSDC
 
-// Stride USDC Challenge Manager (deploy and update this)
+// Base Sepolia USDC (for production deployment)
+export const BASE_SEPOLIA_USDC: Address = "0x036CbD53842c5426634e7929541eC2318f3dCF7e";
+
+// Stride USDC Challenge Manager
+// Localhost Hardhat: 0x4A679253410272dd5232B3Ff7cF5dbB88f295319
 export const STRIDE_USDC_CHALLENGE_ADDRESS: Address =
   (process.env.NEXT_PUBLIC_USDC_CONTRACT_ADDRESS as Address) ||
-  "0x0000000000000000000000000000000000000000";
+  "0x4A679253410272dd5232B3Ff7cF5dbB88f295319";
+
+// Check if USDC contract is deployed
+export const isUSDCContractDeployed =
+  STRIDE_USDC_CHALLENGE_ADDRESS !== "0x0000000000000000000000000000000000000000";
 
 // USDC has 6 decimals (not 18 like ETH)
 export const USDC_DECIMALS = 6;
@@ -33,6 +42,27 @@ export function parseUSDC(amount: string): bigint {
   if (isNaN(parsed)) return BigInt(0);
   return BigInt(Math.floor(parsed * Math.pow(10, USDC_DECIMALS)));
 }
+
+// MockUSDC ABI (includes faucet for testing)
+export const MOCK_USDC_ABI = [
+  {
+    type: "function",
+    name: "faucet",
+    inputs: [],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
+    name: "mint",
+    inputs: [
+      { name: "to", type: "address" },
+      { name: "amount", type: "uint256" },
+    ],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
+] as const;
 
 // Standard ERC20 ABI (for USDC interactions)
 export const ERC20_ABI = [
@@ -412,4 +442,3 @@ export const STRIDE_USDC_CHALLENGE_ABI = [
     stateMutability: "nonpayable",
   },
 ] as const;
-
