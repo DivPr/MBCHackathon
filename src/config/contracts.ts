@@ -2,8 +2,8 @@ import { Address } from "viem";
 
 // Contract address on Base Sepolia - update after deployment
 export const STRIDE_CHALLENGE_ADDRESS: Address =
-  (process.env.NEXT_PUBLIC_CONTRACT_ADDRESS as Address) ||
-  "0x0000000000000000000000000000000000000000";
+  ((process.env.NEXT_PUBLIC_CONTRACT_ADDRESS?.trim()) as Address) ||
+  "0xd12391513A8E7934a289316C5266cFD2CC26aAd4";
 
 // Check if contract is deployed
 export const isContractDeployed = 

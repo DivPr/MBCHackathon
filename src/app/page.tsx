@@ -113,7 +113,9 @@ export default function Home() {
                 Connect your wallet to create challenges, compete with friends, 
                 and earn rewards for staying fit.
               </p>
-              <ConnectButton />
+              <div className="flex justify-center">
+                <ConnectButton />
+              </div>
             </div>
           )
         ) : (
@@ -203,7 +205,7 @@ export default function Home() {
             <span className="font-bold">Stride</span>
           </div>
           <p className="text-stride-muted text-sm">
-            Built for MBC Hackathon 2024 • Powered by Base
+            Built for MBC Hackathon 2025 • Powered by Base
           </p>
         </div>
       </footer>

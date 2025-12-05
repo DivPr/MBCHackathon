@@ -37,22 +37,27 @@ export function ChallengeList() {
   }
 
   if (error) {
+    // Check if it's a network error or just no challenges
+    const isNetworkError = error.message.includes("chain") || error.message.includes("network");
+    
     return (
-      <div className="card border-red-500/30 bg-red-500/5">
+      <div className="card border-orange-500/30 bg-orange-500/5">
         <div className="flex items-start gap-4">
-          <div className="w-12 h-12 bg-red-500/20 rounded-xl flex items-center justify-center shrink-0">
-            <svg className="w-6 h-6 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          <div className="w-12 h-12 bg-orange-500/20 rounded-xl flex items-center justify-center shrink-0">
+            <svg className="w-6 h-6 text-orange-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
           </div>
           <div>
-            <h2 className="text-lg font-bold mb-2 text-red-400">Connection Error</h2>
+            <h2 className="text-lg font-bold mb-2 text-orange-400">
+              {isNetworkError ? "Switch to Base Sepolia" : "Connect to Base Sepolia"}
+            </h2>
             <p className="text-stride-muted text-sm mb-3">
-              Make sure the Hardhat node is running and your wallet is connected to the correct network.
+              Make sure your wallet is connected to Base Sepolia testnet to view and create challenges.
             </p>
-            <code className="text-xs text-red-400/70 font-mono bg-red-500/10 px-2 py-1 rounded">
-              {error.message.slice(0, 80)}...
-            </code>
+            <div className="text-xs text-stride-muted font-mono bg-stride-dark/50 px-3 py-2 rounded-lg">
+              RPC: https://sepolia.base.org • Chain ID: 84532
+            </div>
           </div>
         </div>
       </div>
