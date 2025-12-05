@@ -108,15 +108,15 @@ function createChallenge(
 
 ## Features
 
-- 🏃 **Create Challenges** - Set custom fitness goals with descriptions
-- 💵 **Dual Currency** - Stake ETH or USDC (Circle integration)
-- 👥 **Group Challenges** - Create and join groups with friends
-- 🎯 **Leaderboards** - Track group member performance and win streaks
-- ✅ **Proof of Completion** - Mark runs as complete on-chain
-- 🏆 **Auto Settlement** - Smart contract distributes prizes automatically
-- 🎨 **NFT Badges** - On-chain SVG achievement badges
-- ⏱️ **Early Settlement** - Vote to end challenges early (consensus)
-- 🔄 **Refund Voting** - Democratic cancellation with full refunds
+-  **Create Challenges** - Set custom fitness goals with descriptions
+-  **Dual Currency** - Stake ETH or USDC (Circle integration)
+-  **Group Challenges** - Create and join groups with friends
+-  **Leaderboards** - Track group member performance and win streaks
+-  **Proof of Completion** - Mark runs as complete on-chain
+-  **Auto Settlement** - Smart contract distributes prizes automatically
+-  **NFT Badges** - On-chain SVG achievement badges
+-  **Early Settlement** - Vote to end challenges early (consensus)
+-  **Refund Voting** - Democratic cancellation with full refunds
 
 ---
 
