@@ -84,9 +84,9 @@ export function WalkTracker({ challengeId, onWalkComplete }: WalkTrackerProps) {
     if (challengeId) {
       loadWalkHistory();
     }
-  }, [challengeId]);
+  }, [challengeId, loadWalkHistory]);
 
-  const loadWalkHistory = async () => {
+  const loadWalkHistory = useCallback(async () => {
     if (!challengeId) return;
     
     try {
@@ -100,7 +100,7 @@ export function WalkTracker({ challengeId, onWalkComplete }: WalkTrackerProps) {
     } catch (error) {
       console.error("Failed to load walk history:", error);
     }
-  };
+  }, [challengeId]);
 
   // Update elapsed time every second
   useEffect(() => {

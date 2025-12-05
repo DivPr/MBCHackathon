@@ -13,8 +13,7 @@ interface IStrideGroups {
 
 /**
  * @title StrideChallengeManager
- * @notice A social fitness challenge contract where participants stake ETH,
- *         complete challenges, and winners split the prize pool.
+ * @notice Social fitness challenge contract with ETH stakes, proof pics, and peer verification.
  * @dev Built for Base Sepolia testnet for MBC Hackathon
  */
 contract StrideChallengeManager {
@@ -42,6 +41,13 @@ contract StrideChallengeManager {
         uint256 totalLost;
     }
 
+    struct CompletionView {
+        bool claimed;
+        uint256 approvals;
+        bool verified;
+        string proofCid;
+    }
+
     // ============ State Variables ============
     
     uint256 public challengeCount;
@@ -55,11 +61,16 @@ contract StrideChallengeManager {
     // Challenge ID => participant address => has joined
     mapping(uint256 => mapping(address => bool)) private hasJoinedMapping;
     
-    // Challenge ID => participant address => has completed
+    // Challenge ID => participant address => has completed (self-claim)
     mapping(uint256 => mapping(address => bool)) private hasCompletedMapping;
     
-    // Challenge ID => list of completers
+    // Challenge ID => list of completers (self-claims)
     mapping(uint256 => address[]) private completers;
+
+    // Completion proofs + approvals
+    mapping(uint256 => mapping(address => string)) private completionProofCid;              // proof for each completion
+    mapping(uint256 => mapping(address => uint256)) private completionApprovals;           // number of positive votes
+    mapping(uint256 => mapping(address => mapping(address => bool))) private hasApprovedCompletion; // voter tracking
 
     // Challenge ID => address => voted to cancel
     mapping(uint256 => mapping(address => bool)) private cancelVotes;
@@ -104,6 +115,21 @@ contract StrideChallengeManager {
     event CompletionMarked(
         uint256 indexed challengeId,
         address indexed participant
+    );
+
+    event CompletionClaimed(
+        uint256 indexed challengeId,
+        address indexed participant,
+        string proofCid
+    );
+    
+    event CompletionApproved(
+        uint256 indexed challengeId,
+        address indexed runner,
+        address indexed verifier,
+        bool isValid,
+        uint256 approvals,
+        uint256 requiredApprovals
     );
     
     event ChallengeSettled(
@@ -165,6 +191,10 @@ contract StrideChallengeManager {
     error AlreadyVotedEarlySettle();
     error ChallengeHasParticipants();
     error NoCharityAddress();
+    error NotParticipantVerifier();
+    error RunnerNotCompleted();
+    error AlreadyApproved();
+    error SelfApprovalNotAllowed();
 
     // ============ Constructor ============
     
@@ -172,6 +202,19 @@ contract StrideChallengeManager {
         // Default charity address (can be updated by deployer pattern or governance)
         // Using a well-known charity address - update this to your preferred charity
         charityAddress = 0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619; // Example address
+    }
+
+    // ============ Internal Helpers ============
+
+    /**
+     * @notice For hackathon scope we require just 1 peer approval if >1 participant.
+     *         Solo challenges auto-verify.
+     */
+    function _approvalThreshold(uint256 challengeId) internal view returns (uint256) {
+        uint256 participantCount = participants[challengeId].length;
+        if (participantCount <= 1) return 0;
+        // Require all other participants to sign off (social verification)
+        return participantCount - 1;
     }
 
     // ============ External Functions ============
@@ -299,10 +342,26 @@ contract StrideChallengeManager {
     }
 
     /**
-     * @notice Mark yourself as having completed the challenge
+     * @notice Mark yourself as having completed the challenge (no proof)
      * @param challengeId The ID of the challenge
      */
     function markCompleted(uint256 challengeId) external {
+        _markCompleted(challengeId, "");
+    }
+
+    /**
+     * @notice Mark yourself as completed with a proof CID (photo hash/placeholder)
+     * @param challengeId The ID of the challenge
+     * @param proofCid    Off-chain proof identifier (e.g. IPFS CID / UUID)
+     */
+    function markCompletedWithProof(uint256 challengeId, string calldata proofCid) external {
+        _markCompleted(challengeId, proofCid);
+    }
+
+    /**
+     * @notice Internal completion handler
+     */
+    function _markCompleted(uint256 challengeId, string memory proofCid) internal {
         Challenge storage challenge = challenges[challengeId];
         
         if (challenge.endTime == 0) revert ChallengeNotFound();
@@ -314,10 +373,46 @@ contract StrideChallengeManager {
         hasCompletedMapping[challengeId][msg.sender] = true;
         completers[challengeId].push(msg.sender);
 
+        if (bytes(proofCid).length > 0) {
+            completionProofCid[challengeId][msg.sender] = proofCid;
+        }
+
         // Update user stats
         userStats[msg.sender].challengesCompleted++;
 
         emit CompletionMarked(challengeId, msg.sender);
+        emit CompletionClaimed(challengeId, msg.sender, proofCid);
+    }
+
+    /**
+     * @notice Peers verify a runner's completion claim.
+     *         Any other participant can give +1 approval (or flag) before settlement.
+     */
+    function approveCompletion(uint256 challengeId, address runner, bool isValid) external {
+        Challenge storage challenge = challenges[challengeId];
+        
+        if (challenge.endTime == 0) revert ChallengeNotFound();
+        if (challenge.cancelled) revert AlreadyCancelled();
+        if (challenge.settled) revert AlreadySettled();
+        if (!hasJoinedMapping[challengeId][msg.sender]) revert NotParticipantVerifier();
+        if (msg.sender == runner) revert SelfApprovalNotAllowed();
+        if (!hasCompletedMapping[challengeId][runner]) revert RunnerNotCompleted();
+        if (hasApprovedCompletion[challengeId][runner][msg.sender]) revert AlreadyApproved();
+
+        hasApprovedCompletion[challengeId][runner][msg.sender] = true;
+
+        if (isValid) {
+            completionApprovals[challengeId][runner] += 1;
+        }
+
+        emit CompletionApproved(
+            challengeId,
+            runner,
+            msg.sender,
+            isValid,
+            completionApprovals[challengeId][runner],
+            _approvalThreshold(challengeId)
+        );
     }
 
     /**
@@ -337,13 +432,12 @@ contract StrideChallengeManager {
         cancelVoteCount[challengeId]++;
 
         uint256 totalParticipants = participants[challengeId].length;
-        uint256 votesNeeded = totalParticipants; // All must agree
 
         emit CancelVoteCast(
             challengeId, 
             msg.sender, 
             cancelVoteCount[challengeId], 
-            votesNeeded
+            totalParticipants
         );
 
         // If all participants voted, cancel the challenge
@@ -370,13 +464,12 @@ contract StrideChallengeManager {
         earlySettleVoteCount[challengeId]++;
 
         uint256 totalParticipants = participants[challengeId].length;
-        uint256 votesNeeded = totalParticipants; // All must agree
 
         emit EarlySettleVoteCast(
             challengeId, 
             msg.sender, 
             earlySettleVoteCount[challengeId], 
-            votesNeeded
+            totalParticipants
         );
 
         // If all participants voted, settle the challenge early
@@ -463,12 +556,13 @@ contract StrideChallengeManager {
 
     /**
      * @notice Internal function to settle and distribute prizes
+     *         Only verified completions are eligible (requires approvals >= threshold).
      */
     function _settleChallenge(uint256 challengeId) internal {
         Challenge storage challenge = challenges[challengeId];
         challenge.settled = true;
         
-        address[] memory winners = completers[challengeId];
+        address[] memory winners = getVerifiedCompleters(challengeId);
         address[] memory allParticipants = participants[challengeId];
         uint256 winnersCount = winners.length;
         uint256 totalPool = challenge.totalPool;
@@ -478,7 +572,7 @@ contract StrideChallengeManager {
         bool hasGroup = challenge.groupId > 0 && address(strideGroups) != address(0);
 
         if (winnersCount > 0) {
-            // Split pool among completers
+            // Split pool among verified completers
             prizePerWinner = totalPool / winnersCount;
             
             for (uint256 i = 0; i < winnersCount; i++) {
@@ -502,10 +596,18 @@ contract StrideChallengeManager {
                 if (!success) revert TransferFailed();
             }
 
-            // Update loser stats (participants who didn't complete)
+            // Update loser stats (participants who are NOT verified winners)
             for (uint256 i = 0; i < allParticipants.length; i++) {
                 address participant = allParticipants[i];
-                if (!hasCompletedMapping[challengeId][participant]) {
+                bool isWinner = false;
+                for (uint256 j = 0; j < winnersCount; j++) {
+                    if (participant == winners[j]) {
+                        isWinner = true;
+                        break;
+                    }
+                }
+
+                if (!isWinner) {
                     userStats[participant].totalLost += challenge.stakeAmount;
                     
                     // Update group leaderboard stats for losers
@@ -527,7 +629,7 @@ contract StrideChallengeManager {
                 if (!success) revert TransferFailed();
             }
         } else {
-            // No completers - donate to charity
+            // No verified completers - donate to charity
             if (charityAddress != address(0)) {
                 totalDonatedToCharity += totalPool;
                 
@@ -616,17 +718,77 @@ contract StrideChallengeManager {
     }
 
     /**
-     * @notice Check if an address has completed a challenge
+     * @notice Check if an address has completed a challenge (self-claim)
      */
     function hasCompleted(uint256 challengeId, address participant) external view returns (bool) {
         return hasCompletedMapping[challengeId][participant];
     }
 
     /**
-     * @notice Get all completers of a challenge
+     * @notice Get all self-claimed completers of a challenge
      */
-    function getCompleters(uint256 challengeId) external view returns (address[] memory) {
+    function getCompleters(uint256 challengeId) public view returns (address[] memory) {
         return completers[challengeId];
+    }
+
+    /**
+     * @notice Get verified completers (meets peer approval threshold)
+     */
+    function getVerifiedCompleters(uint256 challengeId) public view returns (address[] memory) {
+        address[] memory claimed = completers[challengeId];
+        uint256 threshold = _approvalThreshold(challengeId);
+        if (threshold == 0) {
+            return claimed;
+        }
+
+        uint256 verifiedCount;
+        for (uint256 i = 0; i < claimed.length; i++) {
+            if (completionApprovals[challengeId][claimed[i]] >= threshold) {
+                verifiedCount++;
+            }
+        }
+
+        address[] memory verified = new address[](verifiedCount);
+        uint256 idx;
+        for (uint256 i = 0; i < claimed.length; i++) {
+            if (completionApprovals[challengeId][claimed[i]] >= threshold) {
+                verified[idx] = claimed[i];
+                idx++;
+            }
+        }
+
+        return verified;
+    }
+
+    /**
+     * @notice Get completion info for a runner
+     */
+    function getCompletionInfo(uint256 challengeId, address runner) external view returns (CompletionView memory) {
+        bool claimed = hasCompletedMapping[challengeId][runner];
+        uint256 approvals = completionApprovals[challengeId][runner];
+        uint256 threshold = _approvalThreshold(challengeId);
+        bool verified = claimed && (threshold == 0 || approvals >= threshold);
+
+        return CompletionView({
+            claimed: claimed,
+            approvals: approvals,
+            verified: verified,
+            proofCid: completionProofCid[challengeId][runner]
+        });
+    }
+
+    /**
+     * @notice Check if a voter has already approved/flagged a runner
+     */
+    function hasApproved(uint256 challengeId, address runner, address voter) external view returns (bool) {
+        return hasApprovedCompletion[challengeId][runner][voter];
+    }
+
+    /**
+     * @notice Get approval threshold for a challenge
+     */
+    function getApprovalThreshold(uint256 challengeId) external view returns (uint256) {
+        return _approvalThreshold(challengeId);
     }
 
     /**

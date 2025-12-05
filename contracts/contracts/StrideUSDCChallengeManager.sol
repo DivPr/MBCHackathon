@@ -7,9 +7,7 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 /**
  * @title StrideUSDCChallengeManager
- * @notice A social fitness challenge contract where participants stake USDC,
- *         complete challenges, and winners split the prize pool.
- * @dev Built for Base Sepolia testnet - Powered by Circle USDC
+ * @notice USDC staking challenge manager with proof pics + peer verification.
  * @custom:bounty Circle USDC and Payments Bounty - MBC Hackathon 2025
  */
 contract StrideUSDCChallengeManager is ReentrancyGuard {
@@ -47,6 +45,13 @@ contract StrideUSDCChallengeManager is ReentrancyGuard {
         uint256 totalLost;        // In USDC
     }
 
+    struct CompletionView {
+        bool claimed;
+        uint256 approvals;
+        bool verified;
+        string proofCid;
+    }
+
     // ============ State Variables ============
     
     uint256 public challengeCount;
@@ -56,6 +61,12 @@ contract StrideUSDCChallengeManager is ReentrancyGuard {
     mapping(uint256 => mapping(address => bool)) private hasJoinedMapping;
     mapping(uint256 => mapping(address => bool)) private hasCompletedMapping;
     mapping(uint256 => address[]) private completers;
+
+    // Completion proofs + approvals
+    mapping(uint256 => mapping(address => string)) private completionProofCid;
+    mapping(uint256 => mapping(address => uint256)) private completionApprovals;
+    mapping(uint256 => mapping(address => mapping(address => bool))) private hasApprovedCompletion;
+
     mapping(uint256 => mapping(address => bool)) private cancelVotes;
     mapping(uint256 => uint256) private cancelVoteCount;
     mapping(uint256 => mapping(address => bool)) private earlySettleVotes;
@@ -85,6 +96,21 @@ contract StrideUSDCChallengeManager is ReentrancyGuard {
     event CompletionMarked(
         uint256 indexed challengeId,
         address indexed participant
+    );
+
+    event CompletionClaimed(
+        uint256 indexed challengeId,
+        address indexed participant,
+        string proofCid
+    );
+    
+    event CompletionApproved(
+        uint256 indexed challengeId,
+        address indexed runner,
+        address indexed verifier,
+        bool isValid,
+        uint256 approvals,
+        uint256 requiredApprovals
     );
     
     event ChallengeSettled(
@@ -142,6 +168,10 @@ contract StrideUSDCChallengeManager is ReentrancyGuard {
     error NoCharityAddress();
     error InsufficientAllowance();
     error InsufficientBalance();
+    error NotParticipantVerifier();
+    error RunnerNotCompleted();
+    error AlreadyApproved();
+    error SelfApprovalNotAllowed();
 
     // ============ Constructor ============
     
@@ -154,6 +184,15 @@ contract StrideUSDCChallengeManager is ReentrancyGuard {
         usdc = IERC20(_usdc);
         // Default charity - GiveDirectly (update for production)
         charityAddress = 0x750EF1D7a0b4Ab1c97B7A623D7917CcEb5ea779C;
+    }
+
+    // ============ Internal Helpers ============
+
+    function _approvalThreshold(uint256 challengeId) internal view returns (uint256) {
+        uint256 participantCount = participants[challengeId].length;
+        if (participantCount <= 1) return 0;
+        // Require all other participants to sign off
+        return participantCount - 1;
     }
 
     // ============ External Functions ============
@@ -176,7 +215,6 @@ contract StrideUSDCChallengeManager is ReentrancyGuard {
         if (stakeAmount == 0) revert InvalidStakeAmount();
         if (duration == 0) revert InvalidDuration();
         
-        // Check allowance and balance
         if (usdc.allowance(msg.sender, address(this)) < stakeAmount) {
             revert InsufficientAllowance();
         }
@@ -202,10 +240,8 @@ contract StrideUSDCChallengeManager is ReentrancyGuard {
         participants[challengeId].push(msg.sender);
         hasJoinedMapping[challengeId][msg.sender] = true;
 
-        // Transfer USDC from user
         usdc.safeTransferFrom(msg.sender, address(this), stakeAmount);
 
-        // Update user stats
         userStats[msg.sender].challengesCreated++;
         userStats[msg.sender].challengesJoined++;
         userStats[msg.sender].totalStaked += stakeAmount;
@@ -313,6 +349,17 @@ contract StrideUSDCChallengeManager is ReentrancyGuard {
      * @param challengeId The ID of the challenge
      */
     function markCompleted(uint256 challengeId) external {
+        _markCompleted(challengeId, "");
+    }
+
+    /**
+     * @notice Mark completion with a proof CID
+     */
+    function markCompletedWithProof(uint256 challengeId, string calldata proofCid) external {
+        _markCompleted(challengeId, proofCid);
+    }
+
+    function _markCompleted(uint256 challengeId, string memory proofCid) internal {
         Challenge storage challenge = challenges[challengeId];
         
         if (challenge.endTime == 0) revert ChallengeNotFound();
@@ -324,14 +371,48 @@ contract StrideUSDCChallengeManager is ReentrancyGuard {
         hasCompletedMapping[challengeId][msg.sender] = true;
         completers[challengeId].push(msg.sender);
 
+        if (bytes(proofCid).length > 0) {
+            completionProofCid[challengeId][msg.sender] = proofCid;
+        }
+
         userStats[msg.sender].challengesCompleted++;
 
         emit CompletionMarked(challengeId, msg.sender);
+        emit CompletionClaimed(challengeId, msg.sender, proofCid);
+    }
+
+    /**
+     * @notice Peer verification for completion claims
+     */
+    function approveCompletion(uint256 challengeId, address runner, bool isValid) external {
+        Challenge storage challenge = challenges[challengeId];
+        
+        if (challenge.endTime == 0) revert ChallengeNotFound();
+        if (challenge.cancelled) revert AlreadyCancelled();
+        if (challenge.settled) revert AlreadySettled();
+        if (!hasJoinedMapping[challengeId][msg.sender]) revert NotParticipantVerifier();
+        if (msg.sender == runner) revert SelfApprovalNotAllowed();
+        if (!hasCompletedMapping[challengeId][runner]) revert RunnerNotCompleted();
+        if (hasApprovedCompletion[challengeId][runner][msg.sender]) revert AlreadyApproved();
+
+        hasApprovedCompletion[challengeId][runner][msg.sender] = true;
+
+        if (isValid) {
+            completionApprovals[challengeId][runner] += 1;
+        }
+
+        emit CompletionApproved(
+            challengeId,
+            runner,
+            msg.sender,
+            isValid,
+            completionApprovals[challengeId][runner],
+            _approvalThreshold(challengeId)
+        );
     }
 
     /**
      * @notice Vote to cancel a challenge (requires all participants to agree)
-     * @param challengeId The ID of the challenge
      */
     function voteCancelChallenge(uint256 challengeId) external {
         Challenge storage challenge = challenges[challengeId];
@@ -361,7 +442,6 @@ contract StrideUSDCChallengeManager is ReentrancyGuard {
 
     /**
      * @notice Vote to end a challenge early
-     * @param challengeId The ID of the challenge
      */
     function voteEarlySettle(uint256 challengeId) external {
         Challenge storage challenge = challenges[challengeId];
@@ -389,23 +469,16 @@ contract StrideUSDCChallengeManager is ReentrancyGuard {
         }
     }
 
-    /**
-     * @notice Check if user has voted for early settle
-     */
     function hasVotedEarlySettle(uint256 challengeId, address user) external view returns (bool) {
         return earlySettleVotes[challengeId][user];
     }
 
-    /**
-     * @notice Get early settle vote status
-     */
     function getEarlySettleVoteStatus(uint256 challengeId) external view returns (uint256 votes, uint256 required) {
         return (earlySettleVoteCount[challengeId], participants[challengeId].length);
     }
 
     /**
      * @notice Creator can cancel if they're the only participant
-     * @param challengeId The ID of the challenge
      */
     function creatorCancelChallenge(uint256 challengeId) external nonReentrant {
         Challenge storage challenge = challenges[challengeId];
@@ -446,7 +519,6 @@ contract StrideUSDCChallengeManager is ReentrancyGuard {
 
     /**
      * @notice Settle the challenge and distribute USDC prize pool
-     * @param challengeId The ID of the challenge to settle
      */
     function settleChallenge(uint256 challengeId) external nonReentrant {
         Challenge storage challenge = challenges[challengeId];
@@ -466,7 +538,7 @@ contract StrideUSDCChallengeManager is ReentrancyGuard {
         Challenge storage challenge = challenges[challengeId];
         challenge.settled = true;
         
-        address[] memory winners = completers[challengeId];
+        address[] memory winners = getVerifiedCompleters(challengeId);
         address[] memory allParticipants = participants[challengeId];
         uint256 winnersCount = winners.length;
         uint256 totalPool = challenge.totalPool;
@@ -485,8 +557,17 @@ contract StrideUSDCChallengeManager is ReentrancyGuard {
             }
 
             for (uint256 i = 0; i < allParticipants.length; i++) {
-                if (!hasCompletedMapping[challengeId][allParticipants[i]]) {
-                    userStats[allParticipants[i]].totalLost += challenge.stakeAmount;
+                address participant = allParticipants[i];
+                bool isWinner = false;
+                for (uint256 j = 0; j < winnersCount; j++) {
+                    if (participant == winners[j]) {
+                        isWinner = true;
+                        break;
+                    }
+                }
+
+                if (!isWinner) {
+                    userStats[participant].totalLost += challenge.stakeAmount;
                 }
             }
             
@@ -524,7 +605,7 @@ contract StrideUSDCChallengeManager is ReentrancyGuard {
      * @notice Update charity address
      */
     function setCharityAddress(address newCharityAddress) external {
-        require(msg.sender == charityAddress || charityAddress == address(0), "Not authorized");
+        require(msg.sender == charityAddress || charityAddress == address(0) || msg.sender == address(this), "Not authorized");
         
         address oldAddress = charityAddress;
         charityAddress = newCharityAddress;
@@ -550,8 +631,56 @@ contract StrideUSDCChallengeManager is ReentrancyGuard {
         return hasCompletedMapping[challengeId][participant];
     }
 
-    function getCompleters(uint256 challengeId) external view returns (address[] memory) {
+    function getCompleters(uint256 challengeId) public view returns (address[] memory) {
         return completers[challengeId];
+    }
+
+    function getVerifiedCompleters(uint256 challengeId) public view returns (address[] memory) {
+        address[] memory claimed = completers[challengeId];
+        uint256 threshold = _approvalThreshold(challengeId);
+        if (threshold == 0) {
+            return claimed;
+        }
+
+        uint256 verifiedCount;
+        for (uint256 i = 0; i < claimed.length; i++) {
+            if (completionApprovals[challengeId][claimed[i]] >= threshold) {
+                verifiedCount++;
+            }
+        }
+
+        address[] memory verified = new address[](verifiedCount);
+        uint256 idx;
+        for (uint256 i = 0; i < claimed.length; i++) {
+            if (completionApprovals[challengeId][claimed[i]] >= threshold) {
+                verified[idx] = claimed[i];
+                idx++;
+            }
+        }
+
+        return verified;
+    }
+
+    function getCompletionInfo(uint256 challengeId, address runner) external view returns (CompletionView memory) {
+        bool claimed = hasCompletedMapping[challengeId][runner];
+        uint256 approvals = completionApprovals[challengeId][runner];
+        uint256 threshold = _approvalThreshold(challengeId);
+        bool verified = claimed && (threshold == 0 || approvals >= threshold);
+
+        return CompletionView({
+            claimed: claimed,
+            approvals: approvals,
+            verified: verified,
+            proofCid: completionProofCid[challengeId][runner]
+        });
+    }
+
+    function hasApproved(uint256 challengeId, address runner, address voter) external view returns (bool) {
+        return hasApprovedCompletion[challengeId][runner][voter];
+    }
+
+    function getApprovalThreshold(uint256 challengeId) external view returns (uint256) {
+        return _approvalThreshold(challengeId);
     }
 
     function hasVotedCancel(uint256 challengeId, address user) external view returns (bool) {
@@ -565,12 +694,4 @@ contract StrideUSDCChallengeManager is ReentrancyGuard {
     function getUserStats(address user) external view returns (UserStats memory) {
         return userStats[user];
     }
-
-    /**
-     * @notice Get USDC token address
-     */
-    function getUSDCAddress() external view returns (address) {
-        return address(usdc);
-    }
 }
-
