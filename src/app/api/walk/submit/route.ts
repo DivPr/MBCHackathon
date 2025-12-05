@@ -11,15 +11,22 @@ interface WalkSubmission {
   duration: number;
   samples: GpsSample[];
   suspicious: boolean;
+  challengeId?: string;
+}
+
+interface StoredWalk extends WalkSubmission {
+  id: string;
+  submittedAt: number;
 }
 
 // In-memory storage for walks (replace with database in production)
-const walks: Array<WalkSubmission & { id: string; submittedAt: number }> = [];
+// Keyed by challengeId (or "global" for walks without a challenge)
+const walksByChallenge: Map<string, StoredWalk[]> = new Map();
 
 export async function POST(request: NextRequest) {
   try {
     const body: WalkSubmission = await request.json();
-    const { distance, duration, samples, suspicious } = body;
+    const { distance, duration, samples, suspicious, challengeId } = body;
 
     // Sanity checks
     const errors: string[] = [];
@@ -55,24 +62,36 @@ export async function POST(request: NextRequest) {
     const walkId = `walk_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
     // Store the walk
-    const walkRecord = {
+    const walkRecord: StoredWalk = {
       id: walkId,
       distance,
       duration,
       samples,
       suspicious,
+      challengeId,
       submittedAt: Date.now(),
     };
 
-    walks.push(walkRecord);
+    // Store by challenge or globally
+    const key = challengeId || "global";
+    if (!walksByChallenge.has(key)) {
+      walksByChallenge.set(key, []);
+    }
+    walksByChallenge.get(key)!.push(walkRecord);
 
     // Log for debugging
     console.log(`Walk submitted: ${walkId}`, {
+      challengeId: challengeId || "none",
       distance: distance.toFixed(2) + " km",
       duration: Math.round(duration / 1000) + "s",
       samples: samples.length,
       suspicious,
     });
+
+    // Calculate totals for this challenge
+    const challengeWalks = walksByChallenge.get(key) || [];
+    const totalDistance = challengeWalks.reduce((sum, w) => sum + w.distance, 0);
+    const totalDuration = challengeWalks.reduce((sum, w) => sum + w.duration, 0);
 
     return NextResponse.json({
       success: true,
@@ -86,6 +105,11 @@ export async function POST(request: NextRequest) {
         samples: samples.length,
         suspicious,
       },
+      challengeProgress: {
+        totalWalks: challengeWalks.length,
+        totalDistance: totalDistance.toFixed(2) + " km",
+        totalDuration: Math.round(totalDuration / 1000) + " seconds",
+      },
     });
   } catch (error) {
     console.error("Walk submit error:", error);
@@ -98,9 +122,17 @@ export async function POST(request: NextRequest) {
 
 // GET endpoint to retrieve walks (for debugging)
 export async function GET() {
+  const allWalks: { challengeId: string; walks: StoredWalk[] }[] = [];
+  
+  walksByChallenge.forEach((walks, challengeId) => {
+    allWalks.push({
+      challengeId,
+      walks: walks.slice(-10), // Last 10 per challenge
+    });
+  });
+
   return NextResponse.json({
-    count: walks.length,
-    walks: walks.slice(-10), // Return last 10 walks
+    challenges: allWalks.length,
+    data: allWalks,
   });
 }
-
